@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Sync OM platform skills from open-mercato/open-mercato repo (develop branch)
-# Run this before each plugin release to update vendored skills.
+# Sync OM platform skills + AGENTS.md files from open-mercato/open-mercato repo (develop branch)
+# Run this before each plugin release to update vendored skills and platform references.
 
 set -euo pipefail
 
@@ -75,11 +75,78 @@ for pair in "${SKILL_PAIRS[@]}"; do
   echo ""
 done
 
-# Save version info
+# Save version info for skills
 echo "${COMMIT_SHA}" > "${SKILLS_DIR}/.om-sync-version"
+echo "Skills sync complete."
+echo ""
+
+# =====================================================================
+# Section 2: Sync AGENTS.md files from OM repo
+# =====================================================================
+
+AGENTS_BASE_URL="https://raw.githubusercontent.com/${REPO}/${BRANCH}"
+AGENTS_DIR="${PLUGIN_ROOT}/om-reference"
+
+# All AGENTS.md paths to vendor (relative to repo root)
+AGENTS_PATHS=(
+  # Root
+  "AGENTS.md"
+  # Packages
+  "packages/ai-assistant/AGENTS.md"
+  "packages/cache/AGENTS.md"
+  "packages/cli/AGENTS.md"
+  "packages/content/AGENTS.md"
+  "packages/core/AGENTS.md"
+  "packages/create-app/AGENTS.md"
+  "packages/create-app/template/AGENTS.md"
+  "packages/enterprise/AGENTS.md"
+  "packages/events/AGENTS.md"
+  "packages/onboarding/AGENTS.md"
+  "packages/queue/AGENTS.md"
+  "packages/search/AGENTS.md"
+  "packages/shared/AGENTS.md"
+  "packages/ui/AGENTS.md"
+  "packages/ui/src/backend/AGENTS.md"
+  # Core modules
+  "packages/core/src/modules/auth/AGENTS.md"
+  "packages/core/src/modules/catalog/AGENTS.md"
+  "packages/core/src/modules/currencies/AGENTS.md"
+  "packages/core/src/modules/customer_accounts/AGENTS.md"
+  "packages/core/src/modules/customers/AGENTS.md"
+  "packages/core/src/modules/data_sync/AGENTS.md"
+  "packages/core/src/modules/integrations/AGENTS.md"
+  "packages/core/src/modules/sales/AGENTS.md"
+  "packages/core/src/modules/workflows/AGENTS.md"
+)
+
+echo "Syncing AGENTS.md files → om-reference/..."
+echo ""
+
+agents_ok=0
+agents_fail=0
+
+for rel_path in "${AGENTS_PATHS[@]}"; do
+  dest="${AGENTS_DIR}/${rel_path}"
+  url="${AGENTS_BASE_URL}/${rel_path}"
+
+  echo "  Fetching ${rel_path}..."
+  if fetch_file "$url" "$dest"; then
+    agents_ok=$((agents_ok + 1))
+  else
+    agents_fail=$((agents_fail + 1))
+  fi
+done
+
+echo ""
+echo "AGENTS.md sync: ${agents_ok} fetched, ${agents_fail} failed (of ${#AGENTS_PATHS[@]} total)"
+echo ""
+
+# Save version info for om-reference
+echo "${COMMIT_SHA}" > "${AGENTS_DIR}/.om-sync-version"
+
 echo "Done. Source commit: ${COMMIT_SHA:0:7}"
 echo ""
 echo "Next steps:"
-echo "  git diff skills/"
-echo "  git add skills/"
-echo "  git commit -m \"chore: sync OM skills from ${REPO}@${COMMIT_SHA:0:7}\""
+echo "  git diff skills/ om-reference/"
+echo "  git add skills/ om-reference/"
+echo "  git commit -m \"chore: sync OM skills + references from ${REPO}@${COMMIT_SHA:0:7}\""

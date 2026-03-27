@@ -1,14 +1,14 @@
 # OM Context Loading Strategy
 
-## OM Repository
+## OM Platform References
 
-```
-OM_REPO=~/Documents/OM-PRM/open-mercato
-```
+Platform AGENTS.md files are vendored in the plugin's `om-reference/` directory. No local OM repo clone needed.
+
+Read files from the plugin's `om-reference/` directory using the Read tool.
 
 ## Step 1: Always start here (Task Router)
 ```
-$OM_REPO/AGENTS.md
+om-reference/AGENTS.md
 ```
 Root AGENTS.md has the Task Router table — it tells you which guide to read for any given task.
 
@@ -16,42 +16,49 @@ Root AGENTS.md has the Task Router table — it tells you which guide to read fo
 
 | Investigating... | Read |
 |-----------------|------|
-| Module dev, CRUD, API routes, events, widgets, setup.ts | `$OM_REPO/packages/core/AGENTS.md` |
-| UI components, forms, data tables, backend pages, portal | `$OM_REPO/packages/ui/AGENTS.md` |
-| Backend page components, apiCall, RowActions | `$OM_REPO/packages/ui/src/backend/AGENTS.md` |
-| CRM patterns — **reference module to copy** | `$OM_REPO/packages/core/src/modules/customers/AGENTS.md` |
-| Auth, RBAC, roles, features, user management | `$OM_REPO/packages/core/src/modules/auth/AGENTS.md` |
-| Customer accounts, portal auth, self-registration | `$OM_REPO/packages/core/src/modules/customer_accounts/AGENTS.md` |
-| Workflows (step-based, timers, user tasks) | `$OM_REPO/packages/core/src/modules/workflows/AGENTS.md` |
-| Sales (orders, quotes, invoices) | `$OM_REPO/packages/core/src/modules/sales/AGENTS.md` |
-| Catalog (products, variants, pricing) | `$OM_REPO/packages/core/src/modules/catalog/AGENTS.md` |
-| Integrations, data sync | `$OM_REPO/packages/core/src/modules/integrations/AGENTS.md` + `data_sync/AGENTS.md` |
-| Search (fulltext, vector, tokens) | `$OM_REPO/packages/search/AGENTS.md` |
-| Background jobs, workers | `$OM_REPO/packages/queue/AGENTS.md` |
-| Caching | `$OM_REPO/packages/cache/AGENTS.md` |
-| Events, event bus, DOM event bridge | `$OM_REPO/packages/events/AGENTS.md` |
-| Shared utilities, types, DSL, i18n | `$OM_REPO/packages/shared/AGENTS.md` |
-| CLI tooling, generators, migrations | `$OM_REPO/packages/cli/AGENTS.md` |
-| Onboarding wizards, tenant setup | `$OM_REPO/packages/onboarding/AGENTS.md` |
-| Enterprise overlay | `$OM_REPO/packages/enterprise/AGENTS.md` |
-| Currencies, exchange rates | `$OM_REPO/packages/core/src/modules/currencies/AGENTS.md` |
-| create-mercato-app template | `$OM_REPO/packages/create-app/AGENTS.md` + `template/AGENTS.md` |
-| AI assistant, MCP tools | `$OM_REPO/packages/ai-assistant/AGENTS.md` |
+| Module dev, CRUD, API routes, events, widgets, setup.ts | `om-reference/packages/core/AGENTS.md` |
+| UI components, forms, data tables, backend pages, portal | `om-reference/packages/ui/AGENTS.md` |
+| Backend page components, apiCall, RowActions | `om-reference/packages/ui/src/backend/AGENTS.md` |
+| CRM patterns — **reference module to copy** | `om-reference/packages/core/src/modules/customers/AGENTS.md` |
+| Auth, RBAC, roles, features, user management | `om-reference/packages/core/src/modules/auth/AGENTS.md` |
+| Customer accounts, portal auth, self-registration | `om-reference/packages/core/src/modules/customer_accounts/AGENTS.md` |
+| Workflows (step-based, timers, user tasks) | `om-reference/packages/core/src/modules/workflows/AGENTS.md` |
+| Sales (orders, quotes, invoices) | `om-reference/packages/core/src/modules/sales/AGENTS.md` |
+| Catalog (products, variants, pricing) | `om-reference/packages/core/src/modules/catalog/AGENTS.md` |
+| Integrations, data sync | `om-reference/packages/core/src/modules/integrations/AGENTS.md` + `om-reference/packages/core/src/modules/data_sync/AGENTS.md` |
+| Search (fulltext, vector, tokens) | `om-reference/packages/search/AGENTS.md` |
+| Background jobs, workers | `om-reference/packages/queue/AGENTS.md` |
+| Caching | `om-reference/packages/cache/AGENTS.md` |
+| Events, event bus, DOM event bridge | `om-reference/packages/events/AGENTS.md` |
+| Shared utilities, types, DSL, i18n | `om-reference/packages/shared/AGENTS.md` |
+| CLI tooling, generators, migrations | `om-reference/packages/cli/AGENTS.md` |
+| Onboarding wizards, tenant setup | `om-reference/packages/onboarding/AGENTS.md` |
+| Enterprise overlay | `om-reference/packages/enterprise/AGENTS.md` |
+| Currencies, exchange rates | `om-reference/packages/core/src/modules/currencies/AGENTS.md` |
+| create-mercato-app template | `om-reference/packages/create-app/AGENTS.md` + `om-reference/packages/create-app/template/AGENTS.md` |
+| AI assistant, MCP tools | `om-reference/packages/ai-assistant/AGENTS.md` |
 | n8n automation, external orchestration | `open-mercato/n8n-nodes` repo (check via `gh` CLI) |
 | Official marketplace modules | `open-mercato/official-modules` repo (check via `gh` CLI) |
 
 ## Step 3: Specs (when checking requirements or conflicts)
-```
-$OM_REPO/.ai/specs/                     — OSS specs
-$OM_REPO/.ai/specs/enterprise/          — Enterprise specs (feature-toggled, never mixed into core)
-$OM_REPO/.ai/specs/AGENTS.md            — Spec writing rules
+
+Specs are not vendored. Use GitHub API to browse them:
+```bash
+gh api repos/open-mercato/open-mercato/contents/.ai/specs --jq '.[].name'
+gh api repos/open-mercato/open-mercato/contents/.ai/specs/enterprise --jq '.[].name'
 ```
 
 ## Step 4: Actual code (when verifying "does X exist?")
+
+Source code is not vendored. Use `gh search code` to search the live repo:
+```bash
+gh search code "searchTerm" --repo open-mercato/open-mercato
+gh search code "functionName" --repo open-mercato/open-mercato --filename "*.ts"
 ```
-$OM_REPO/packages/core/src/modules/     — All core module source
-$OM_REPO/packages/*/src/                — Package implementations
-$OM_REPO/.github/workflows/             — CI pipelines
+
+For browsing specific directories:
+```bash
+gh api repos/open-mercato/open-mercato/contents/packages/core/src/modules --jq '.[].name'
 ```
 
 ## Step 5: External OM repos (when checking ecosystem capabilities)
@@ -64,13 +71,13 @@ $OM_REPO/.github/workflows/             — CI pipelines
 
 ## Loading rules for external repos
 - Use `gh` CLI to browse without cloning: `gh api repos/open-mercato/<repo>/contents/<path>`
-- Only clone if you need to search code. Keep external repos outside the OM_REPO path.
+- Only clone if you need to search code. Keep external repos outside the working directory.
 - Enterprise specs are in the main repo but gated — check them when a feature seems like it should exist but doesn't in OSS.
 
 ## Loading Rules
 
 - **Max 2-3 AGENTS.md per investigation.** Root + the specific module. No more.
 - **Always start with root AGENTS.md** — Task Router tells you where to look.
-- **Use Grep/Glob for targeted searches** — don't read entire files when looking for a specific function.
-- **Verify on upstream** — `git -C $OM_REPO fetch upstream` then search against upstream branches.
+- **Use Grep/Glob for targeted searches** within vendored files — don't read entire files when looking for a specific function.
+- **Use `gh search code`** for live code searches against the OM repo.
 - **Don't load what you don't need** — "Agent will blow up context window."
