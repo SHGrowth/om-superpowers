@@ -29,9 +29,9 @@ read -r -d '' OM_CONTEXT << 'CTXEOF' || true
 You are working in an Open Mercato project. The following OM-specific skills are available via the Skill tool:
 
 **Spec & Design:**
-- om-mat: Product owner workflow — business context, workflows, user stories, platform mapping
-- om-piotr: CTO challenge — gap analysis, "does OM already do X?", atomic commit estimation
-- om-krug: UI architecture review — navigation, task completion, cognitive load
+- om-product-manager: Product owner workflow — business context, workflows, user stories, platform mapping
+- om-cto: CTO challenge — gap analysis, "does OM already do X?", atomic commit estimation
+- om-ux: UI architecture review — navigation, task completion, cognitive load
 
 **Implementation:**
 - om-implement-spec: Multi-phase spec implementation with coordinated subagents

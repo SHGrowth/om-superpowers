@@ -1,5 +1,5 @@
 ---
-name: om-piotr
+name: om-cto
 description: "Use when asked to build a feature, review a PR, or implement something new — before any code or review work. Also triggers on gap analysis, platform capability checks, or 'does OM already do X' questions."
 ---
 

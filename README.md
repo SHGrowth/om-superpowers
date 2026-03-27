@@ -13,7 +13,7 @@ Claude Code plugin for Open Mercato developers. 10 skills covering the full OM d
 
 - [Claude Code](https://claude.ai/code) (or Cursor with plugin support)
 - [superpowers](https://github.com/obra/superpowers) plugin — OM skills reference superpowers workflows (brainstorming, writing-plans, executing-plans, TDD)
-- [GitHub CLI](https://cli.github.com/) (`gh`) — authenticated, for om-piotr platform search
+- [GitHub CLI](https://cli.github.com/) (`gh`) — authenticated, for om-cto platform search
 
 ## Skills
 
@@ -21,9 +21,9 @@ Claude Code plugin for Open Mercato developers. 10 skills covering the full OM d
 
 | Skill | When to use |
 |-------|-------------|
-| `om-mat` | Starting a new feature, module, or spec — business context, workflows, user stories |
-| `om-piotr` | Before any code — gap analysis, "does OM already do X?", atomic commit estimation |
-| `om-krug` | After UI architecture is defined — navigation, task completion, cognitive load review |
+| `om-product-manager` | Starting a new feature, module, or spec — business context, workflows, user stories |
+| `om-cto` | Before any code — gap analysis, "does OM already do X?", atomic commit estimation |
+| `om-ux` | After UI architecture is defined — navigation, task completion, cognitive load review |
 
 ### Implementation
 
@@ -45,7 +45,7 @@ Claude Code plugin for Open Mercato developers. 10 skills covering the full OM d
 ### Developer Flow
 
 ~~~
-om-mat --> om-piotr --> om-krug --> om-spec-writing --> om-pre-implement-spec --> om-implement-spec --> om-code-review
+om-product-manager --> om-cto --> om-ux --> om-spec-writing --> om-pre-implement-spec --> om-implement-spec --> om-code-review
 ~~~
 
 ## How superpowers + OM skills work together
@@ -56,10 +56,10 @@ Superpowers provides the **workflow engine** (brainstorming, planning, TDD, debu
 1. User: "Build a feature for OM"
    │
 2. superpowers:brainstorming          ← superpowers drives the design process
-   │  └─ invokes om-mat               ← OM skill: defines spec with domain model
-   │       └─ dispatches Vernon        ← DDD challenger (subagent within om-mat)
-   │       └─ invokes om-piotr         ← OM skill: "does OM already do this?"
-   │       └─ invokes om-krug          ← OM skill: UI architecture review
+   │  └─ invokes om-product-manager               ← OM skill: defines spec with domain model
+   │       └─ dispatches Vernon        ← DDD challenger (subagent within om-product-manager)
+   │       └─ invokes om-cto         ← OM skill: "does OM already do this?"
+   │       └─ invokes om-ux          ← OM skill: UI architecture review
    │
 3. superpowers:writing-plans           ← superpowers creates implementation plan
    │  └─ invokes om-pre-implement-spec ← OM skill: BC impact, risk analysis
@@ -78,7 +78,7 @@ Superpowers provides the **workflow engine** (brainstorming, planning, TDD, debu
 
 | Phase | Superpowers skill | OM skill (domain) |
 |-------|------------------|-------------------|
-| Design | `brainstorming` | `om-mat`, `om-piotr`, `om-krug` |
+| Design | `brainstorming` | `om-product-manager`, `om-cto`, `om-ux` |
 | Planning | `writing-plans` | `om-spec-writing`, `om-pre-implement-spec` |
 | Implementation | `executing-plans`, `tdd` | `om-implement-spec`, `om-integration-tests`, `om-integration-builder`, `om-backend-ui-design` |
 | Review | `requesting-code-review` | `om-code-review` (replaces generic reviewer) |

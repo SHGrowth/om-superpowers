@@ -1,5 +1,5 @@
 ---
-name: om-mat
+name: om-product-manager
 description: Use when starting any new feature, module, or spec implementation on Open Mercato — before writing code, before brainstorming, before planning. Triggers on "build X", "implement spec", "add feature", or when user stories lack success criteria. Also use when reviewing existing specs for gaps.
 ---
 
