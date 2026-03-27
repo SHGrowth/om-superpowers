@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# SessionStart hook for om-claude-plugin
+# Detects OM projects and injects available skills context
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# Detect OM project — check working directory for OM indicators
+is_om_project=false
+
+if [ -f "package.json" ] && grep -q "@open-mercato/" package.json 2>/dev/null; then
+  is_om_project=true
+elif [ -f "AGENTS.md" ] && grep -q "Open Mercato" AGENTS.md 2>/dev/null; then
+  is_om_project=true
+elif [ -d ".ai" ]; then
+  is_om_project=true
+fi
+
+# If not an OM project, exit silently
+if [ "$is_om_project" = false ]; then
+  echo '{}'
+  exit 0
+fi
+
+# Build context message
+read -r -d '' OM_CONTEXT << 'CTXEOF' || true
+You are working in an Open Mercato project. The following OM-specific skills are available via the Skill tool:
+
+**Spec & Design:**
+- om-mat: Product owner workflow — business context, workflows, user stories, platform mapping
+- om-piotr: CTO challenge — gap analysis, "does OM already do X?", atomic commit estimation
+- om-krug: UI architecture review — navigation, task completion, cognitive load
+
+**Implementation:**
+- om-implement-spec: Multi-phase spec implementation with coordinated subagents
+- om-spec-writing: Specification creation with architectural compliance
+- om-pre-implement-spec: Pre-implementation BC impact and risk analysis
+- om-integration-tests: Playwright integration test creation and execution
+- om-integration-builder: Provider package development (payment, shipping, data sync)
+- om-backend-ui-design: Backend UI patterns within OM framework
+
+**Quality:**
+- om-code-review: CI/CD verification gate + full OM checklist (20+ sections)
+
+When working on OM code, prefer om-* skills over generic equivalents.
+OM platform conventions: https://github.com/open-mercato/open-mercato/blob/develop/AGENTS.md
+CTXEOF
+
+# Escape for JSON
+escape_for_json() {
+    local s="$1"
+    s="${s//\\/\\\\}"
+    s="${s//\"/\\\"}"
+    s="${s//$'\n'/\\n}"
+    s="${s//$'\r'/\\r}"
+    s="${s//$'\t'/\\t}"
+    printf '%s' "$s"
+}
+
+escaped_context=$(escape_for_json "$OM_CONTEXT")
+
+# Output for Claude Code or Cursor
+if [ -n "${CURSOR_PLUGIN_ROOT:-}" ]; then
+  printf '{\n  "additional_context": "%s"\n}\n' "$escaped_context"
+elif [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
+  printf '{\n  "hookSpecificOutput": {\n    "hookEventName": "SessionStart",\n    "additionalContext": "%s"\n  }\n}\n' "$escaped_context"
+else
+  printf '{\n  "additional_context": "%s"\n}\n' "$escaped_context"
+fi
+
+exit 0
