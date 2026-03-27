@@ -1,0 +1,7 @@
+{
+  "name": "om-claude-plugin",
+  "version": "1.0.0",
+  "description": "Claude Code plugin for Open Mercato developers",
+  "license": "MIT",
+  "repository": "https://github.com/SHGrowth/om-claude-plugin"
+}

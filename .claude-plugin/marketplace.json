@@ -1,0 +1,18 @@
+{
+  "name": "om-claude-plugin",
+  "description": "Open Mercato developer skills marketplace",
+  "owner": {
+    "name": "Open Mercato"
+  },
+  "plugins": [
+    {
+      "name": "om-claude-plugin",
+      "description": "Skills for Open Mercato developers: spec writing, platform challenge, implementation, code review, and testing",
+      "version": "1.0.0",
+      "source": "./",
+      "author": {
+        "name": "Open Mercato"
+      }
+    }
+  ]
+}
