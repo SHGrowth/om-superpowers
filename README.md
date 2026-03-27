@@ -5,14 +5,15 @@ Claude Code plugin for Open Mercato developers. 10 skills covering the full OM d
 ## Install
 
 ~~~
-/plugin install https://github.com/SHGrowth/om-claude-plugin.git
+/plugin marketplace add SHGrowth/om-claude-plugin
+/plugin install om-claude-plugin@om-claude-plugin
 ~~~
 
 ### Prerequisites
 
 - [Claude Code](https://claude.ai/code) (or Cursor with plugin support)
+- [superpowers](https://github.com/obra/superpowers) plugin — OM skills reference superpowers workflows (brainstorming, writing-plans, executing-plans, TDD)
 - [GitHub CLI](https://cli.github.com/) (`gh`) — authenticated, for om-piotr platform search
-- Recommended: [superpowers](https://github.com/obra/superpowers) plugin
 
 ## Skills
 
