@@ -38,6 +38,8 @@ Before writing any code, ask the user:
 
 ### If user chooses External Extension
 
+**Invoke the `om-system-extension` skill** to guide UMES implementation. It provides the decision tree, templates, and the Triad Pattern (enricher → widget → injection-table) for extending core modules without modifying their source.
+
 - Determine if the user is working inside a `create-mercato-app` scaffolded repo or wants a standalone npm package in `packages/`.
 - **Standalone npm package**: Create package under `packages/<extension-name>/` with proper `@open-mercato/<extension-name>` naming and `package.json`.
 - **App-level module**: Place code in `apps/mercato/src/modules/<module>/` (or the user's app repo).
@@ -74,6 +76,11 @@ Read the phase from the spec. For each step within the phase:
 Present a brief plan to the user before coding.
 
 ### Step 2 — Implement
+
+**Skill handoffs for common situations:**
+- **Creating a new module from scratch?** Invoke `om-module-scaffold` — it bootstraps the full module structure (entity → API → pages → ACL → events → DI) following OM conventions.
+- **Designing entities or relationships?** Follow `om-data-model-design` — it has the type selection guide, cross-module FK rules, junction table patterns, and migration lifecycle.
+- **Extending another module's UI or API?** Invoke `om-system-extension` — it guides UMES mechanism selection (enrichers, widgets, interceptors, guards, component replacement).
 
 Use subagents liberally to parallelize independent work:
 - **One subagent per independent file/component** when files don't depend on each other
@@ -188,7 +195,7 @@ After all targeted phases are complete:
 5. **Module prepare**: `npm run modules:prepare` — if any convention files changed
 6. **Migration check**: `yarn db:generate` — if any entities changed (verify generated migration is scoped correctly)
 
-Report results to the user. If any check fails, fix and re-verify.
+Report results to the user. If any check fails, invoke `om-troubleshooter` for systematic diagnosis before attempting fixes — do not guess randomly. Follow its diagnostic flow, then fix and re-verify.
 
 ### Step 9 — Code Review (MANDATORY — Auto-Chain)
 

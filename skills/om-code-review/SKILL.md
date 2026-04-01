@@ -44,6 +44,7 @@ Run these commands and verify each one exits successfully (exit code 0):
 - **Every failure is a finding**: If `yarn typecheck` or `yarn test` fails, it is a **Critical** finding in the review — even if the failure appears unrelated to the current changes. The PR will fail CI regardless of whose fault it is.
 - **No excuses**: "Pre-existing on develop", "flaky test", "not our code" are not valid reasons to skip. If it fails on your branch, it will fail on CI. Fix it or flag it as a blocker.
 - **Evidence required**: The review output MUST include the actual pass/fail result of each gate step. Do not assume — run the commands and report what happened.
+- **When a gate fails**: Invoke `om-troubleshooter` for systematic diagnosis before attempting random fixes. Follow its diagnostic flow (§1) and error→fix table (§9) to identify the root cause efficiently.
 
 ## Output Format
 
