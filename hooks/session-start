@@ -26,7 +26,21 @@ fi
 
 # Build context message
 read -r -d '' OM_CONTEXT << 'CTXEOF' || true
-You are working in an Open Mercato project. The following OM-specific skills are available via the Skill tool:
+You are working in an Open Mercato project with OM Superpowers active.
+
+## IMPORTANT: Session Start Behavior
+
+When the session starts, briefly greet the user and announce that OM Superpowers are active. Present the main workflow paths so the user knows what's available:
+
+1. **Build a feature** — om-product-manager → om-cto → om-spec-writing → om-implement-spec → om-code-review
+2. **Implement a spec** — om-pre-implement-spec → om-implement-spec → om-code-review
+3. **Review code** — om-code-review
+4. **Run/write tests** — om-integration-tests
+5. **Debug / explore** — om-cto for platform questions, om-ux for UI review
+
+Ask what they'd like to work on. If they provide a task directly, match it to the right skill and invoke it immediately.
+
+## Available OM Skills
 
 **Spec & Design:**
 - om-product-manager: Product owner workflow — business context, workflows, user stories, platform mapping
@@ -44,8 +58,11 @@ You are working in an Open Mercato project. The following OM-specific skills are
 **Quality:**
 - om-code-review: CI/CD verification gate + full OM checklist (20+ sections)
 
-When working on OM code, prefer om-* skills over generic equivalents.
-OM platform conventions: https://github.com/open-mercato/open-mercato/blob/develop/AGENTS.md
+## Rules
+
+- ALWAYS prefer om-* skills over generic equivalents when working on OM code.
+- Once a skill workflow is started, follow it to completion — do not break out or skip steps.
+- Do not wait for the user to say "use superpowers" or "follow om skills" — they are always on.
 CTXEOF
 
 # Escape for JSON

@@ -7,6 +7,18 @@ description: Implement a specification (or specific phases of a spec) using coor
 
 Implements a specification (or selected phases) end-to-end using a team of coordinated subagents. Every code change MUST pass the code-review checklist before the phase is considered done.
 
+## Pipeline Lock
+
+Once this skill is invoked, the full pipeline MUST be followed to completion:
+
+```
+Plan → Implement → Unit Tests → Integration Tests (run them!) → Docs → Self-Review → Update Spec → Verification → Code Review → Commit
+```
+
+Do NOT exit this pipeline early. Do NOT skip steps. Do NOT ask "should I run code review?" or "should I run tests?" — the answer is always yes. The user should only need to provide confirmations on plans and decisions, not re-steer you through mandatory steps.
+
+If the user gives a short confirmation ("yes", "sure", "continue"), proceed to the next pipeline step. Only stop the pipeline if the user explicitly says to stop or if there's a blocker that requires their input.
+
 ## Pre-Flight
 
 1. **Identify the spec**: Locate the target spec file(s) in `.ai/specs/` or `.ai/specs/enterprise/`.
@@ -93,16 +105,17 @@ For every new feature/function implemented in the phase:
 - Mock external dependencies (DI services, data engine)
 - Verify tests pass: `yarn test --filter <module>`
 
-### Step 4 — Integration Tests
+### Step 4 — Integration Tests (Write AND Run)
 
-If the spec defines integration test scenarios (or the phase adds API endpoints / UI flows):
+If the phase adds API endpoints, UI flows, or significant behavioral changes — write integration tests. Do NOT skip this step just because the spec doesn't list explicit scenarios; propose scenarios to the user.
+
 - Follow the `integration-tests` skill workflow (`.ai/skills/integration-tests/SKILL.md`)
 - Place tests in `<module>/__integration__/TC-{CATEGORY}-{XXX}.spec.ts`
 - Tests MUST be self-contained: create fixtures in setup, clean up in teardown
 - Tests MUST NOT rely on seeded/demo data
-- Run and verify: `npx playwright test --config .ai/qa/tests/playwright.config.ts <path> --retries=0`
-
-If the spec does not explicitly list integration scenarios but the phase adds significant API or UI behavior, propose test scenarios to the user before writing them.
+- **Tests MUST be executed, not just written.** Run them: `npx playwright test --config .ai/qa/tests/playwright.config.ts <path> --retries=0`
+- **Report pass/fail counts.** If tests fail, diagnose and fix before proceeding.
+- **Do NOT mark this step complete until tests are green.** Writing tests without running them is incomplete work.
 
 ### Step 5 — Documentation
 
@@ -177,6 +190,14 @@ After all targeted phases are complete:
 
 Report results to the user. If any check fails, fix and re-verify.
 
+### Step 9 — Code Review (MANDATORY — Auto-Chain)
+
+After ALL phases pass verification, **immediately invoke the `om-code-review` skill**. Do NOT ask the user whether to review — just do it. Code review is a mandatory part of the implementation pipeline, not an optional follow-up.
+
+If the code review produces Critical or High findings, fix them and re-run verification (Step 8) before reporting completion.
+
+Only after code review passes with no Critical/High findings should you report implementation as complete and offer to commit.
+
 ## Subagent Strategy
 
 | Task | Agent Type | When |
@@ -209,6 +230,8 @@ When implementing component replacement features (as in SPEC-041h pattern):
 - MUST run `yarn build:packages` after final phase to verify no build breaks
 - MUST create unit tests for all new behavioral code
 - MUST create or propose integration tests for phases with API endpoints or UI flows
+- MUST run integration tests after writing them — writing without executing is incomplete work
+- MUST auto-invoke om-code-review after all phases pass verification — do not ask, just do it
 - MUST NOT skip the self-review step — it is the quality gate
 - MUST NOT introduce `any` types, hardcoded strings, raw `fetch`, or other anti-patterns
 - MUST follow backward compatibility rules — no breaking changes without deprecation protocol
