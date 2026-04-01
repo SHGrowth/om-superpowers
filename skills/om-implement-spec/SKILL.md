@@ -19,6 +19,21 @@ Do NOT exit this pipeline early. Do NOT skip steps. Do NOT ask "should I run cod
 
 If the user gives a short confirmation ("yes", "sure", "continue"), proceed to the next pipeline step. Only stop the pipeline if the user explicitly says to stop or if there's a blocker that requires their input.
 
+## Subagent Mode Detection
+
+If this skill was invoked by Piotr (om-cto) as part of the Implementation Orchestrator, the spec will contain a `## Technical Approach` section with Piotr's decisions (extension vs core, UMES mechanism, module strategy).
+
+**When Technical Approach section exists in the spec:**
+- Skip the Extension Mode Decision — Piotr already decided
+- Read the Technical Approach section for: mode (external/core), mechanism, entities, extensions
+- Proceed directly to Implementation Workflow using Piotr's decisions
+- Pipeline Lock is active — follow the full pipeline without stopping
+
+**When Technical Approach section does NOT exist** (standalone invocation):
+- Follow the normal Extension Mode Decision flow below (ask the user)
+
+This allows om-implement-spec to work both as an autonomous subagent (dispatched by Piotr) and as a standalone skill (invoked directly by user).
+
 ## Pre-Flight
 
 1. **Identify the spec**: Locate the target spec file(s) in `.ai/specs/` or `.ai/specs/enterprise/`.
@@ -27,9 +42,11 @@ If the user gives a short confirmation ("yes", "sure", "continue"), proceed to t
 4. **Load lessons**: Read `.ai/lessons.md` for known pitfalls.
 5. **Scope phases**: If the user specifies phases (e.g. "phases e-h"), filter to only those. Otherwise implement all phases sequentially.
 
-## Extension Mode Decision (Mandatory First Step)
+## Extension Mode Decision (Standalone Mode Only)
 
-Before writing any code, ask the user:
+**Skip this section if the spec has a `## Technical Approach` section** — Piotr already made this decision. Go directly to Implementation Workflow.
+
+When invoked standalone (no Technical Approach in spec), ask the user:
 
 > **Where should this feature live?**
 >
