@@ -186,16 +186,30 @@ As a [persona with clear identity model],
 I want [specific action],
 so that [measurable business outcome].
 
-Success: [concrete, testable criteria — what the user sees/does when it works]
+Happy path: [concrete, testable criteria — what the user sees/does when it works]
+
+Alternate paths:
+- [valid but non-default flow] → [what happens]
+
+Failure paths:
+- [what goes wrong] → [what the user sees] → [system state after]
 ```
 
-**Kill weak stories immediately:**
+A story with only a happy path is a demo script, not a spec. Every story must answer: **"What happens when it doesn't work?"**
 
-| Weak | Strong |
-|------|--------|
-| "BD wants to answer RFPs" | "BD submits structured RFP response with capabilities/pricing/timeline. Success: PM sees it in comparison table, linked to agency's case studies." |
-| "Admin wants to manage team" | "Admin invites colleague by email, assigns role. Success: colleague receives email, sets password, sees scoped dashboard within 24h." |
-| "System tracks WIP" | "BD creates deal in CRM tagged to their agency. Success: deal appears in agency KPI dashboard within 1 minute, WIP count increments." |
+**For each story, ask:**
+1. **What can the user do wrong?** (invalid input, wrong order, missing required data, duplicate submission)
+2. **What can the system fail at?** (external API down, timeout, concurrent edit, migration mid-flight)
+3. **What can the user choose not to do?** (cancel, abandon mid-flow, close tab, come back later)
+4. **What valid alternatives exist?** (bulk vs single, import vs manual, delegate vs self-serve)
+
+**Kill happy-path-only stories immediately:**
+
+| Happy-path-only | Complete |
+|----------------|----------|
+| "BD submits RFP response. Success: PM sees it in comparison table." | "BD submits RFP response. **Happy:** PM sees it in comparison table, linked to case studies. **Alternate:** BD saves draft, resumes later — draft visible only to BD. **Failure:** BD submits with missing required fields → inline validation, no submission. BD submits after deadline → rejected with clear message, no partial state." |
+| "Admin invites colleague by email. Success: colleague sets password, sees dashboard." | "Admin invites colleague. **Happy:** colleague receives email, sets password, sees scoped dashboard within 24h. **Alternate:** colleague already has account in another org → merge prompt, not duplicate. **Failure:** invalid email → rejected at form. Colleague never clicks link → invite expires after 7 days, admin sees 'pending' status." |
+| "System imports KPI data. Success: dashboard updates." | "System imports KPI data. **Happy:** dashboard updates within 1 minute. **Alternate:** partial import (some rows valid, some not) → valid rows imported, invalid rows listed in error report, admin notified. **Failure:** import file malformed → rejected entirely, previous data unchanged, admin sees error with line numbers." |
 
 **Identity checkpoint per story:**
 - User (backend) or CustomerUser (portal)? — verified against §2 Portal Decision Framework

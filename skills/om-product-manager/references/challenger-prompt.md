@@ -32,6 +32,13 @@ Focus areas (pick what's relevant to the section):
 - Is external data validated/translated at the boundary?
 - Could external system changes break domain invariants?
 
+**Path Completeness (§5 User Stories only):**
+- Does every story define failure paths, or only the happy path? A story with only "Success" is a demo script, not a spec.
+- For each failure path: is the system state after failure explicit? (e.g., "no partial state saved" vs. leaving it ambiguous)
+- Are alternate valid flows covered? (e.g., save-as-draft, bulk operation, delegation, retry)
+- What happens when the user abandons mid-flow? (closes tab, cancels, times out) Is partial state cleaned up or orphaned?
+- What happens when an external dependency fails? (API timeout, webhook not delivered, import file corrupt)
+
 **Cross-Story Impact (§5 User Stories only):**
 - Does Story A's state change break Story B's preconditions? (e.g., tier downgrade while RFP evaluation is in progress)
 - Can two stories fire concurrently and contradict each other? (e.g., manual override + automated evaluation on the same entity)
