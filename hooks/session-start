@@ -66,6 +66,15 @@ These do NOT skip the pipeline — they are support tools:
 - Never offer implementation as an option when specs don't exist yet.
 - Tell the user where they are and what the next step is. Guide, don't ask.
 
+### User Proxy
+
+After greeting and pipeline guidance, check for the user proxy:
+
+- If `app-spec/proxy-lessons.md` exists in the working directory → proxy is set up. Read the file for the proxy name and lesson count. Announce: "[Name] is active. [N] app lessons, [M] global lessons."
+- If no proxy-lessons.md exists → introduce the proxy concept and ask the user to name them. See the `om-user-proxy` skill for the full onboarding flow.
+
+The proxy is invoked by other skills before presenting questions to the user. You do not need to invoke it during session-start — it activates when skills call it.
+
 ## Available OM Skills
 
 **Spec & Design:**
@@ -89,6 +98,9 @@ These do NOT skip the pipeline — they are support tools:
 - om-integration-tests: Playwright integration test creation and execution
 - om-troubleshooter: Diagnose and fix common OM issues (errors, 404s, migrations, widgets)
 - om-toolkit-review: Audit skill corpus for context waste, duplication, and structural issues
+
+**Pipeline:**
+- om-user-proxy: User's decision proxy — intercepts questions, resolves from context, escalates only business judgment calls
 
 ## Rules
 
