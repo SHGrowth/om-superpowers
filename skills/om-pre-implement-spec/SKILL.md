@@ -238,4 +238,5 @@ Launch parallel Explore agents for independent code areas (events, API routes, w
 - MUST propose concrete fixes for every violation and gap
 - MUST NOT modify any code — this skill is analysis only
 - MUST NOT modify the spec directly — propose changes in the report for user review
+- MUST invoke `om-user-proxy` before presenting the analysis report to the user. The proxy resolves items where the answer is already in the app spec or lessons (e.g., "should we add i18n keys?" → always yes per convention). Only present unresolved items to the user alongside the full report. The proxy does NOT auto-apply spec changes — it resolves the decision, and the report includes it as a resolved item.
 - MUST check `.ai/lessons.md` for known pitfalls relevant to the spec's domain
