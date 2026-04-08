@@ -51,6 +51,14 @@ apps/<app>/app-spec/mat-notes/
 
 Mat does NOT blindly agree with every finding. If the challenger flags something that Mat has good business reason to keep, Mat pushes back with the reason and documents the decision.
 
+### Proxy Gate
+
+Before presenting findings, triage results, or analysis to the user, invoke `om-user-proxy` as a subagent with the full list of questions/findings/decisions. The proxy resolves what it can and returns only the items that need the user's judgment.
+
+**Do NOT present raw finding lists to the user.** Always run through the proxy first.
+
+**Exception:** Phase 0 discovery questions (business model, flywheel, goals, scope) go directly to the user — the proxy has nothing to learn from yet.
+
 <HARD-GATE>
 Do NOT write code, create specs, brainstorm designs, or invoke any implementation skill until ALL phases below are complete. No exceptions. No "this is simple enough to skip."
 </HARD-GATE>
