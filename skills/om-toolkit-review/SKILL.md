@@ -78,9 +78,8 @@ Skills should be decision logic + workflow. Code templates belong in `references
 **Threshold:** If code templates exceed 50% of SKILL.md, they should move to `references/templates.md`.
 
 **Check which skills follow the right pattern:**
-- om-cto: decision logic in SKILL.md, templates in references — **good pattern**
-- om-spec-writing: workflow in SKILL.md, template in references — **good pattern**
-- Compare other skills against these two
+- om-cto: lean task router in SKILL.md, mode workflows in references — **ideal pattern**
+- Compare other skills against this pattern
 
 ### 4. Trigger Overlap
 
@@ -94,15 +93,15 @@ Multiple skills matching the same user intent causes wrong-skill invocation.
 
 | User says | Should trigger | Should NOT trigger |
 |-----------|---------------|-------------------|
-| "build this feature" | om-cto (advisory) | om-implement-spec (needs spec first) |
-| "implement the spec" | om-implement-spec | om-product-manager |
-| "review this code" | om-code-review | om-cto |
+| "build this feature" | om-cto (advisory) | om-product-manager |
+| "implement the spec" | om-cto (impl orchestrator) | om-product-manager |
+| "review this code" | base code-review (synced) | om-cto |
 | "create a new module" | om-module-scaffold | om-cto |
 | "extend the customers module" | om-system-extension | om-eject-and-customize |
-| "write a spec" | om-spec-writing | om-product-manager |
+| "write a spec" | om-cto (spec orchestrator) | om-product-manager |
 | "add an entity" | om-data-model-design | om-module-scaffold |
 | "design the UI" | om-backend-ui-design | om-ux |
-| "run tests" | om-integration-tests | om-implement-spec |
+| "run tests" | om-integration-tests | om-cto |
 | "this doesn't work" | om-troubleshooter | — |
 
 **Verdict:** If two skills both match a phrase, their descriptions need disambiguation. One should clearly say "Use BEFORE X" and the other "Use AFTER X" or "Use WHEN X already exists."
@@ -128,7 +127,7 @@ done
 ```
 
 Also check:
-- Cross-skill references (does `om-implement-spec` reference `om-code-review` by correct name?)
+- Cross-skill references (do om-cto dispatch contexts reference base skills correctly?)
 - `om-reference/` paths (do referenced AGENTS.md files exist in vendored copy?)
 
 ### 6. Chain Context Explosion
@@ -139,11 +138,11 @@ When om-cto orchestrates, it chains multiple skills. Estimate total context for 
 
 ```
 Chain A (Spec Orchestrator):
-  om-cto + om-spec-writing + om-pre-implement-spec
+  om-cto SKILL.md + spec-orchestrator.md + base spec-writing + base pre-implement-spec
   + conditional: om-data-model-design, om-system-extension
 
 Chain B (Implementation Orchestrator — per spec):
-  om-implement-spec + om-code-review + om-integration-tests
+  om-cto SKILL.md + impl-orchestrator.md + base implement-spec + base code-review + base integration-tests
   + conditional: om-module-scaffold, om-backend-ui-design,
                  om-system-extension, om-troubleshooter
 
@@ -186,9 +185,9 @@ Internal skills are fine if intentional. Document which are which.
 Check that skills that reference each other agree on conventions.
 
 **Process:**
-- Does om-implement-spec's "invoke om-code-review" match om-code-review's actual workflow?
-- Does om-cto's "dispatch om-spec-writing in subagent mode" match om-spec-writing's subagent mode detection?
-- Do pipeline assumptions (om-implement-spec Pipeline Lock steps) match what downstream skills actually do?
+- Do om-cto's dispatch context sections match what the base OM skills actually expect?
+- Do pipeline assumptions (impl-orchestrator Pipeline Lock) match what base skills actually do?
+- Are synced base skills up to date with OM core develop?
 
 ## Output Format
 

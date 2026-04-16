@@ -1,6 +1,6 @@
 ---
 name: om-data-model-design
-description: Design entities, relationships, and manage the migration lifecycle for Open Mercato apps. Use when planning a data model, designing entities, choosing relationship patterns, adding cross-module references, or managing database migrations. Use standalone or when dispatched by om-implement-spec for entity work. Triggers on "design entity", "data model", "add entity", "database schema", "migration", "relationship", "many-to-many", "junction table", "foreign key", "jsonb", "add column".
+description: Design entities, relationships, and manage the migration lifecycle for Open Mercato apps. Use when planning a data model, designing entities, choosing relationship patterns, adding cross-module references, or managing database migrations. Use standalone or when dispatched by Piotr's implementation orchestrator for entity work. Triggers on "design entity", "data model", "add entity", "database schema", "migration", "relationship", "many-to-many", "junction table", "foreign key", "jsonb", "add column".
 ---
 
 # Data Model Design

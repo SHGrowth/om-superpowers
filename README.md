@@ -48,7 +48,7 @@ The plugin auto-detects OM projects on session start by checking for `@open-merc
 
 ### The Two Workflows
 
-**Manual (skill-by-skill):** Invoke any skill directly — `om-code-review`, `om-troubleshooter`, etc.
+**Manual (skill-by-skill):** Invoke any skill directly — `om-troubleshooter`, `om-system-extension`, etc.
 
 **Orchestrated (autonomous):** Start with `om-product-manager` to define requirements, then `om-cto` takes over — autonomously writes specs, implements them one by one, runs tests, does code review, and checkpoints with you between each spec.
 
@@ -60,20 +60,20 @@ The plugin auto-detects OM projects on session start by checking for `@open-merc
                     │  om-cto         │              │  om-product-manager     │
                     │  (gap analysis) │              │  (App Spec with Cagan)  │
                     ├─────────────────┤              └───────────┬─────────────┘
-                    │  om-code-review │                          │
-                    │  (review code)  │                          ▼
+                    │  om-troubleshoot│                          │
+                    │  (fix errors)   │                          ▼
                     ├─────────────────┤              ┌─────────────────────────┐
-                    │  om-troubleshoot│              │  om-cto                 │
-                    │  (fix errors)   │              │  Spec Orchestrator:     │
+                    │  om-system-ext  │              │  om-cto                 │
+                    │  (extend UMES)  │              │  Spec Orchestrator:     │
                     ├─────────────────┤              │  decompose → write specs│
                     │  om-integration │              │  → cross-validate       │
                     │  -tests (QA)    │              │  → execution plan       │
                     ├─────────────────┤              │  → you review           │
-                    │  om-spec-writing│              └───────────┬─────────────┘
-                    │  (write a spec) │                          │ (per spec)
-                    ├─────────────────┤                          ▼
-                    │  ...any skill   │              ┌─────────────────────────┐
-                    └─────────────────┘              │  om-cto                 │
+                    │  ...any skill   │              └───────────┬─────────────┘
+                    └─────────────────┘                          │ (per spec)
+                                                                 ▼
+                                                     ┌─────────────────────────┐
+                                                     │  om-cto                 │
                                                      │  Implementation Orch:   │
                                                      │  implement → test →     │
                                                      │  code review → you test │
@@ -90,14 +90,11 @@ The plugin auto-detects OM projects on session start by checking for `@open-merc
 | `om-product-manager` | Defining business requirements — BEFORE any spec or code exists |
 | `om-cto` | Gap analysis, architecture decisions, or orchestrating the full spec→build pipeline |
 | `om-ux` | UI architecture review — navigation, task completion, cognitive load |
-| `om-spec-writing` | Creating architecturally compliant specifications |
-| `om-pre-implement-spec` | Pre-implementation backward compatibility and risk analysis |
 
 ### Implementation
 
 | Skill | When to use |
 |-------|-------------|
-| `om-implement-spec` | Multi-phase spec implementation with coordinated subagents |
 | `om-module-scaffold` | Bootstrapping a new module from scratch (entity → API → pages → ACL) |
 | `om-data-model-design` | Entity design, relationships, migration lifecycle |
 | `om-system-extension` | Extending core modules via UMES (enrichers, widgets, interceptors, guards) |
@@ -109,7 +106,6 @@ The plugin auto-detects OM projects on session start by checking for `@open-merc
 
 | Skill | When to use |
 |-------|-------------|
-| `om-code-review` | CI/CD verification gate + full OM checklist (20+ sections) |
 | `om-integration-tests` | Creating or running Playwright integration tests |
 | `om-troubleshooter` | Diagnosing errors, 404s, missing modules, broken widgets |
 
@@ -126,9 +122,9 @@ Superpowers provides the **workflow engine** (brainstorming, planning, TDD, debu
 | Phase | Superpowers (how) | OM skills (what) |
 |-------|-------------------|-------------------|
 | Design | `brainstorming` | `om-product-manager`, `om-cto`, `om-ux` |
-| Planning | `writing-plans` | `om-spec-writing`, `om-pre-implement-spec` |
-| Implementation | `executing-plans`, `tdd` | `om-implement-spec`, `om-module-scaffold`, `om-system-extension`, `om-data-model-design`, `om-integration-builder`, `om-backend-ui-design` |
-| Review | `requesting-code-review` | `om-code-review` (replaces generic reviewer) |
+| Planning | `writing-plans` | `om-cto` (spec orchestrator dispatches base spec-writing + pre-implement) |
+| Implementation | `executing-plans`, `tdd` | `om-cto` (impl orchestrator dispatches base implement-spec), `om-module-scaffold`, `om-system-extension`, `om-data-model-design`, `om-integration-builder`, `om-backend-ui-design` |
+| Review | `requesting-code-review` | `om-cto` (dispatches base code-review with OM context) |
 | Testing | `tdd` | `om-integration-tests` |
 | Debugging | `systematic-debugging` | `om-troubleshooter` |
 

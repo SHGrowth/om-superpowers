@@ -1,6 +1,6 @@
 ---
 name: om-module-scaffold
-description: Scaffold a new module from scratch with all required files and Open Mercato conventions. Use standalone or when dispatched by om-implement-spec for new module creation. Triggers on "create module", "new module", "scaffold module", "add module", "bootstrap module", "generate module".
+description: Scaffold a new module from scratch with all required files and Open Mercato conventions. Use standalone or when dispatched by Piotr's implementation orchestrator for new module creation. Triggers on "create module", "new module", "scaffold module", "add module", "bootstrap module", "generate module".
 ---
 
 # Module Scaffold

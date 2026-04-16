@@ -423,7 +423,7 @@ After Phase 5 (Handoff) is complete and the App Spec is finalized:
 
 **Dispatch Piotr in Spec Orchestrator mode.** He will autonomously:
 1. Decompose the App Spec into functional specs
-2. Write each spec using om-spec-writing (with gap analysis from om-cto advisory logic)
+2. Write each spec using the base spec-writing skill (with gap analysis from om-cto advisory logic)
 3. Cross-validate all specs for contradictions and coverage
 4. Produce an execution plan
 5. Present specs + plan to the user for review
