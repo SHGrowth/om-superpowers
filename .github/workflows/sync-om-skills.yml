@@ -24,7 +24,7 @@ jobs:
       - name: Run sync script
         run: bash scripts/sync-om-skills.sh
         env:
-          GH_TOKEN: ${{ secrets.OM_REPO_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check for changes
         id: changes
