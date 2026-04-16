@@ -141,9 +141,11 @@ Skills are lightweight — decision logic and workflows inline, code templates i
 ```
 skills/
   om-cto/
-    SKILL.md                          # Decision logic, phases, rules (~11KB)
+    SKILL.md                          # Task router, principles, red flags (~4KB)
     references/
-      orchestrator-modes.md           # Detailed orchestrator workflows (on-demand)
+      advisory.md                     # Gap analysis workflow (on-demand)
+      spec-orchestrator.md            # App Spec → functional specs (on-demand)
+      impl-orchestrator.md            # Specs → implementation (on-demand)
       atomic-commits.md               # Scoring methodology (on-demand)
       context-loading.md              # Module lookup table (on-demand)
   om-system-extension/
