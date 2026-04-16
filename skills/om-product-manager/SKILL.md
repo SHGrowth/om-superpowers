@@ -183,7 +183,7 @@ If this is a reference implementation, apply higher bar:
 
 ### Piotr Checkpoint #1
 
-After workflows + gap matrix: invoke Piotr to verify workflow-to-OM mapping. If Piotr finds a module Cagan missed, go back and re-map. After Piotr finishes, compare his findings against `references/platform-capabilities.md` — if Piotr confirmed a capability not listed there (merged to main/develop), add it.
+After workflows + gap matrix: invoke Piotr to verify workflow-to-OM mapping. If Piotr finds a module Cagan missed, go back and re-map.
 
 ## Phase 2: User Stories with Teeth
 
@@ -273,11 +273,18 @@ For EACH user story, check OM capabilities **in order**. Stop at the first match
 6. Messages module? → **Message type + template**
 7. None of the above → **New code needed** (measure twice)
 
-Consult `references/platform-capabilities.md` for the full capability checklist and red flags table. Update it only after a Piotr session confirms a new capability is merged to main/develop — see update rules in that file.
+To verify what OM already provides, use these sources (in order):
+
+1. **`om-reference/AGENTS.md` Task Router** — matches tasks to module guides. Start here.
+2. **Module AGENTS.md** — read the specific module guide for detailed capabilities.
+3. **`gh search code`** — live search against `open-mercato/open-mercato` for implemented code.
+4. **`.ai/specs/implemented/`** — specs that have shipped. Check via `gh api repos/open-mercato/open-mercato/contents/.ai/specs/implemented`.
+
+Do NOT rely on static checklists — OM ships faster than any checklist can track.
 
 ### Piotr Checkpoint #2
 
-After story gap matrix: invoke Piotr to verify story-to-OM mapping. If Piotr finds overengineering, go back and re-map. After Piotr finishes, compare his findings against `references/platform-capabilities.md` — if Piotr confirmed a capability not listed there (merged to main/develop), add it.
+After story gap matrix: invoke Piotr to verify story-to-OM mapping. If Piotr finds overengineering, go back and re-map.
 
 ## Phase 4: Gap Analysis & Phasing
 
@@ -349,6 +356,10 @@ Present the complete App Spec. Wait for confirmation before any design/planning/
 - Custom state management → workflows module does this
 - Can't define success criteria → user story is incomplete, don't build
 - Domain term means different things in different specs → fix ubiquitous language first
+- Custom API routes duplicating module CRUD → use `makeCrudRoute` or existing module API
+- Custom inbox/list page → messages module with custom message type
+- Building user management UI → auth module backend pages
+- Custom entity CRUD → `entities` module custom entities
 
 ## Flow
 
