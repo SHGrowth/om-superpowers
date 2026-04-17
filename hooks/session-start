@@ -16,6 +16,8 @@ elif [ -f "AGENTS.md" ] && grep -q "Open Mercato" AGENTS.md 2>/dev/null; then
   is_om_project=true
 elif [ -d ".ai" ]; then
   is_om_project=true
+elif [ -d "app-spec" ]; then
+  is_om_project=true
 fi
 
 # If not an OM project, exit silently

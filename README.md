@@ -2,9 +2,56 @@
 
 Claude Code plugin for [Open Mercato](https://github.com/open-mercato/open-mercato) developers. 20 skills covering the full OM lifecycle — from business requirements through implementation to code review.
 
+## Install
+
+```
+/plugins marketplace add SHGrowth/om-superpowers
+/plugins install om-superpowers@om-superpowers
+```
+
+### Prerequisites
+
+- [Claude Code](https://claude.ai/code) (CLI or Desktop)
+- [GitHub CLI](https://cli.github.com/) (`gh`) — authenticated, used by `om-cto` for platform search
+
+### Update
+
+```
+/plugins marketplace update om-superpowers
+```
+
 ## Getting Started
 
-### 1. Create an Open Mercato app
+### Ideation & spec writing (no app needed)
+
+Create a project directory and start Claude Code:
+
+```bash
+mkdir my-project && cd my-project
+mkdir app-spec
+claude
+```
+
+The `app-spec/` directory tells the plugin to activate. Then just describe what you want to build:
+
+> "I want to build a B2B portal for selling Apple devices to enterprises"
+
+The plugin routes your request through the pipeline:
+
+1. **Product Manager (Cagan)** walks you through business requirements — who are the users, what are the workflows, what does success look like. Outputs an App Spec.
+2. **CTO (Piotr)** decomposes the App Spec into functional specs — one per module or feature. You review and approve them.
+3. **Piotr** implements each spec one by one — writes code, runs tests, does code review — and checkpoints with you between each spec so you can test on localhost.
+
+You can also invoke any skill directly, outside the pipeline:
+
+- **"does OM already handle inventory?"** → `om-cto` does a platform gap analysis
+- **"extend the customer table with a VIP flag"** → `om-system-extension` guides the UMES approach
+- **"this page is broken"** → `om-troubleshooter` diagnoses the issue
+- **"run integration tests"** → `om-integration-tests` executes the Playwright suite
+
+### Building an app
+
+When you're ready to code, scaffold an OM app:
 
 ```bash
 npx create-mercato-app@develop my-app
@@ -12,20 +59,9 @@ cd my-app
 yarn install
 ```
 
-> Use the `@develop` tag to get the latest modules and templates. The `latest` stable release may lag behind.
+> Use the `@develop` tag to get the latest modules and templates.
 
-### 2. Install the plugin
-
-Open Claude Code in your app directory and run:
-
-```
-/plugins marketplace add SHGrowth/om-superpowers
-/plugins install om-superpowers@om-superpowers
-```
-
-### 3. Remove frozen skill copies
-
-`create-mercato-app` currently scaffolds frozen skill copies into `.ai/skills/`. These are stale snapshots — the plugin replaces them with 20 always-up-to-date skills. Delete the frozen copies:
+Remove frozen skill copies — the plugin replaces them with 20 always-up-to-date skills:
 
 ```bash
 rm -rf .ai/skills/
@@ -33,46 +69,7 @@ rm -rf .ai/skills/
 
 > This cleanup step will no longer be needed once [open-mercato/open-mercato#1562](https://github.com/open-mercato/open-mercato/pull/1562) is merged.
 
-### 4. Start building
-
-Start a new Claude Code session in your app directory. The plugin auto-detects your OM project and injects all skills.
-
-```bash
-claude
-```
-
-Then just describe what you want to build:
-
-> "I want to build a loyalty points system"
-
-That's it. You don't need to know which skills to invoke — the plugin handles the routing. Here's what happens behind the scenes:
-
-1. **Product Manager (Cagan)** picks up your request and walks you through business requirements — who are the users, what are the workflows, what does success look like. Outputs an App Spec.
-2. **CTO (Piotr)** decomposes the App Spec into functional specs — one per module or feature. You review and approve them.
-3. **Piotr** implements each spec one by one — writes code, runs tests, does code review — and checkpoints with you between each spec so you can test on localhost.
-
-You stay in control at every checkpoint. The skills handle the process.
-
-### Using skills directly
-
-You can also invoke any skill on its own, outside the pipeline:
-
-- **"this page is broken"** → `om-troubleshooter` diagnoses the issue
-- **"does OM already handle inventory?"** → `om-cto` does a platform gap analysis
-- **"extend the customer table with a VIP flag"** → `om-system-extension` guides the UMES approach
-- **"run integration tests"** → `om-integration-tests` executes the Playwright suite
-
-### Prerequisites
-
-- [Claude Code](https://claude.ai/code) (CLI or Desktop)
-- [GitHub CLI](https://cli.github.com/) (`gh`) — authenticated, used by `om-cto` for platform search
-- [Node.js](https://nodejs.org/) 18+ and [Yarn](https://yarnpkg.com/)
-
-### Update
-
-```
-/plugins marketplace update om-superpowers
-```
+Start Claude Code in the app directory — the plugin auto-detects `@open-mercato/` in `package.json` and activates all skills.
 
 ### Codex CLI
 
@@ -84,7 +81,7 @@ Codex does not support Claude Code plugins natively. To use OM skills in Codex:
 
 ## How It Works
 
-The plugin auto-detects OM projects on session start by checking for `@open-mercato/` in `package.json`, `"Open Mercato"` in `AGENTS.md`, or an `.ai/` directory. When detected, all skills are injected into the session.
+The plugin auto-detects OM projects on session start by checking for any of: `@open-mercato/` in `package.json`, `"Open Mercato"` in `AGENTS.md`, `.ai/` directory, or `app-spec/` directory. When detected, all skills are injected into the session.
 
 ### Two Workflows
 
