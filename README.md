@@ -60,25 +60,17 @@ You can also invoke any skill directly, outside the pipeline:
 
 ### Building an app
 
-When you're ready to code, scaffold an OM app:
+When you're ready to code, scaffold the OM app into the same directory:
 
 ```bash
-npx create-mercato-app@develop my-app
-cd my-app
+npx create-mercato-app@develop .
 yarn install
-```
-
-> Use the `@develop` tag to get the latest modules and templates.
-
-Remove frozen skill copies — the plugin replaces them with 20 always-up-to-date skills:
-
-```bash
 rm -rf .ai/skills/
 ```
 
-> This cleanup step will no longer be needed once [open-mercato/open-mercato#1562](https://github.com/open-mercato/open-mercato/pull/1562) is merged.
+> Use the `@develop` tag to get the latest modules and templates. The `rm -rf .ai/skills/` removes frozen skill copies that the plugin replaces — this step will no longer be needed once [open-mercato/open-mercato#1562](https://github.com/open-mercato/open-mercato/pull/1562) is merged.
 
-Start Claude Code in the app directory. If you already have an `app-spec/` from the ideation phase, copy it into the app so the pipeline continues where you left off.
+Your `app-spec/` stays in place. The pipeline continues where you left off — Piotr picks up the approved specs and starts implementing.
 
 ### Codex CLI
 
