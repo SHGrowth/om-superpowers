@@ -95,13 +95,7 @@ What belongs here depends on the domain:
 - **If there are access control rules:** permissions hierarchy, cross-org visibility, data ownership (who creates/reads/updates, system vs user)
 - **Domain invariants:** what must always be true
 
-**Kill vague rules:**
-
-| Vague | Why it's dangerous | Specific |
-|-------|-------------------|----------|
-| "Admin manages team" | What does "manage" mean? | "Admin invites by email, assigns role. Cannot delete users." |
-| "System tracks WIP" | Who creates the data? | "BD creates deal in CRM. System counts deals in SQL+ stage per org per month." |
-| "Tiers are evaluated" | By whom, when, based on what? | "Monthly scheduled job compares WIC+WIP+MIN against 4 threshold sets. PM approves changes." |
+**Kill vague rules** — see `references/quality-gates.md` for before/after examples. If a rule uses "manages", "tracks", or "evaluates" without specifying who/when/what — it's vague.
 
 ### 4. Identity & Portal Decision
 
@@ -154,15 +148,7 @@ After each workflow, challenge it:
 - Someone games the system? (fake KPIs, inflated metrics)
 - Someone leaves mid-workflow? (person leaves org, role change)
 
-**ROI:** Must be specific and measurable.
-
-| Vague ROI | Specific ROI |
-|-----------|-------------|
-| "OM benefits from pipeline" | "Each active agency generates avg 5 WIP/month = 5 new prospects in OM's pipeline" |
-| "Agency gets visibility" | "AI-native tier = 2x higher match score = estimated 3x more RFP invitations/quarter" |
-| "Better governance" | "Automated tier review saves PM 4h/week of manual spreadsheet work" |
-
-If you can't quantify the ROI, the workflow might not be worth building.
+**ROI:** Must be specific and measurable. If you can't quantify the ROI, the workflow might not be worth building. See `references/quality-gates.md` for vague-vs-specific ROI examples.
 
 ### Production Reality Check
 
@@ -211,13 +197,7 @@ A story with only a happy path is a demo script, not a spec. Every story must an
 3. **What can the user choose not to do?** (cancel, abandon mid-flow, close tab, come back later)
 4. **What valid alternatives exist?** (bulk vs single, import vs manual, delegate vs self-serve)
 
-**Kill happy-path-only stories immediately:**
-
-| Happy-path-only | Complete |
-|----------------|----------|
-| "BD submits RFP response. Success: PM sees it in comparison table." | "BD submits RFP response. **Happy:** PM sees it in comparison table, linked to case studies. **Alternate:** BD saves draft, resumes later — draft visible only to BD. **Failure:** BD submits with missing required fields → inline validation, no submission. BD submits after deadline → rejected with clear message, no partial state." |
-| "Admin invites colleague by email. Success: colleague sets password, sees dashboard." | "Admin invites colleague. **Happy:** colleague receives email, sets password, sees scoped dashboard within 24h. **Alternate:** colleague already has account in another org → merge prompt, not duplicate. **Failure:** invalid email → rejected at form. Colleague never clicks link → invite expires after 7 days, admin sees 'pending' status." |
-| "System imports KPI data. Success: dashboard updates." | "System imports KPI data. **Happy:** dashboard updates within 1 minute. **Alternate:** partial import (some rows valid, some not) → valid rows imported, invalid rows listed in error report, admin notified. **Failure:** import file malformed → rejected entirely, previous data unchanged, admin sees error with line numbers." |
+**Kill happy-path-only stories immediately.** See `references/quality-gates.md` for before/after examples showing how to expand happy-path-only stories into complete stories with alternate and failure paths.
 
 **Identity checkpoint per story:**
 - User (backend) or CustomerUser (portal)? — verified against §2 Portal Decision Framework
@@ -242,24 +222,9 @@ User stories don't exist in isolation. When Story A changes state, it can break 
 4. **Can two stories run concurrently and contradict?** (e.g., "approve tier upgrade" and "downgrade for inactivity" fire simultaneously)
 5. **If this story fails or reverts, which stories break?** (rollback cascades)
 
-**Cross-Story Impact Matrix:**
+Build the **Cross-Story Impact Matrix** — see `references/quality-gates.md` for the matrix format, example entries, and the 5 conflict patterns to watch for (race conditions, cascade storms, stale preconditions, orphaned references, timing gaps).
 
-| Story | State changed | Stories affected | Impact | Mitigation |
-|-------|--------------|-----------------|--------|------------|
-| _example:_ US-01 | Agency tier upgraded | US-04 (benefits recalc), US-07 (match score changes) | Benefits and match score must update atomically or user sees stale data | Domain event `AgencyTierChanged` triggers downstream recalcs |
-| _example:_ US-03 | BD leaves organization | US-02 (WIP count drops), US-05 (open deals orphaned) | Orphaned deals have no owner, WIP metrics inaccurate | Reassignment workflow required before removal completes |
-
-**Conflict patterns to watch for:**
-- **Race conditions:** Two stories modify the same entity — which wins? (e.g., manual tier override vs. automated evaluation)
-- **Cascade storms:** Story A triggers event → Story B reacts → triggers event → Story C reacts → unbounded chain
-- **Stale preconditions:** Story assumes state X, but Story Y changed it minutes ago (e.g., "user sees tier benefits" after downgrade but cache hasn't cleared)
-- **Orphaned references:** Story deletes/archives an entity that other stories reference (e.g., removing a metric type that active tier rules depend on)
-- **Timing gaps:** Story A and Story B are both correct individually, but the time between them creates an inconsistent window (e.g., tier changed but notifications haven't sent — user acts on stale info)
-
-**If the impact matrix reveals:**
-- **Missing stories** (e.g., "we need a reassignment workflow") → add them before proceeding
-- **Contradictions** (e.g., two stories can't both be true) → resolve them, don't defer as open questions
-- **Missing domain events** (e.g., no event connects Story A's state change to Story B's reaction) → add them to the domain model
+**If the matrix reveals missing stories, contradictions, or missing domain events** → fix them before proceeding, don't defer as open questions.
 
 ## Phase 3: Map to Platform
 
@@ -363,59 +328,13 @@ Present the complete App Spec. Wait for confirmation before any design/planning/
 
 ## Flow
 
-```dot
-digraph flow {
-    rankdir=TB;
-    "Phase 0: Business Context + Domain Model" [shape=box];
-    "CHALLENGER: Vernon reviews §1" [shape=box style=filled fillcolor=lightsalmon];
-    "Phase 1: Workflows + ROI" [shape=box];
-    "CHALLENGER: Vernon reviews §2-3" [shape=box style=filled fillcolor=lightsalmon];
-    "Production Reality Check" [shape=box];
-    "Workflow Gap Matrix" [shape=box];
-    "PIOTR: verify workflow mapping" [shape=box style=filled fillcolor=lightyellow];
-    "Phase 2: User Stories" [shape=box];
-    "Cross-Story Impact Analysis" [shape=box style=filled fillcolor=lightcyan];
-    "CHALLENGER: Vernon reviews §5 + impacts" [shape=box style=filled fillcolor=lightsalmon];
-    "Phase 3: Map to Platform" [shape=box];
-    "User Story Gap Matrix" [shape=box];
-    "PIOTR: verify story mapping" [shape=box style=filled fillcolor=lightyellow];
-    "Phase 4: Gap Analysis + Phasing" [shape=box];
-    "CHALLENGER: Vernon reviews §7" [shape=box style=filled fillcolor=lightsalmon];
-    "Phase 5: Handoff" [shape=box];
-    "Piotr: Spec Orchestrator" [shape=box style=filled fillcolor=lightgreen];
-
-    "Phase 0: Business Context + Domain Model" -> "CHALLENGER: Vernon reviews §1";
-    "CHALLENGER: Vernon reviews §1" -> "Phase 1: Workflows + ROI" [label="pass"];
-    "CHALLENGER: Vernon reviews §1" -> "Phase 0: Business Context + Domain Model" [label="critical"];
-    "Phase 1: Workflows + ROI" -> "CHALLENGER: Vernon reviews §2-3";
-    "CHALLENGER: Vernon reviews §2-3" -> "Production Reality Check" [label="pass"];
-    "CHALLENGER: Vernon reviews §2-3" -> "Phase 1: Workflows + ROI" [label="critical"];
-    "Production Reality Check" -> "Workflow Gap Matrix";
-    "Workflow Gap Matrix" -> "PIOTR: verify workflow mapping";
-    "PIOTR: verify workflow mapping" -> "Phase 2: User Stories" [label="approved"];
-    "PIOTR: verify workflow mapping" -> "Workflow Gap Matrix" [label="re-map"];
-    "Phase 2: User Stories" -> "Cross-Story Impact Analysis";
-    "Cross-Story Impact Analysis" -> "CHALLENGER: Vernon reviews §5 + impacts";
-    "CHALLENGER: Vernon reviews §5 + impacts" -> "Phase 3: Map to Platform" [label="pass"];
-    "CHALLENGER: Vernon reviews §5 + impacts" -> "Phase 2: User Stories" [label="critical"];
-    "Phase 3: Map to Platform" -> "User Story Gap Matrix";
-    "User Story Gap Matrix" -> "PIOTR: verify story mapping";
-    "PIOTR: verify story mapping" -> "Phase 4: Gap Analysis + Phasing" [label="approved"];
-    "PIOTR: verify story mapping" -> "Phase 3: Map to Platform" [label="re-map"];
-    "Phase 4: Gap Analysis + Phasing" -> "CHALLENGER: Vernon reviews §7";
-    "CHALLENGER: Vernon reviews §7" -> "ACCEPTANCE: Vernon writes criteria" [label="pass"];
-    "CHALLENGER: Vernon reviews §7" -> "Phase 4: Gap Analysis + Phasing" [label="critical"];
-    "ACCEPTANCE: Vernon writes criteria" -> "CAGAN: challenges criteria";
-    "CAGAN: challenges criteria" -> "Phase 5: Handoff" [label="agreed"];
-    "CAGAN: challenges criteria" -> "ACCEPTANCE: Vernon writes criteria" [label="over-engineered"];
-    "Phase 5: Handoff" -> "Piotr: Spec Orchestrator";
-
-    "ACCEPTANCE: Vernon writes criteria" [shape=box style=filled fillcolor=lightsalmon];
-    "CAGAN: challenges criteria" [shape=box style=filled fillcolor=lightblue];
-}
+```
+Phase 0 → Vernon challenge → Phase 1 → Vernon challenge → Reality Check → Gap Matrix → Piotr checkpoint #1
+→ Phase 2 → Cross-Story Impact → Vernon challenge → Phase 3 → Gap Matrix → Piotr checkpoint #2
+→ Phase 4 → Vernon challenge → Vernon writes acceptance → Cagan challenges → Phase 5 → Piotr Spec Orchestrator
 ```
 
-Cagan delivers the right thing. Vernon challenges the domain model. Piotr ensures it's mapped right. All three agree before any code.
+Each Vernon challenge loops back on critical findings. Each Piotr checkpoint loops back on re-mapping. All three agree before any code.
 
 ## Handoff to Piotr
 

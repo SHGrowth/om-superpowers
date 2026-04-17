@@ -12,7 +12,12 @@ Claude Code plugin for [Open Mercato](https://github.com/open-mercato/open-merca
 ### Prerequisites
 
 - [Claude Code](https://claude.ai/code) (CLI or Desktop)
-- [GitHub CLI](https://cli.github.com/) (`gh`) — authenticated, used by `om-cto` for platform search
+- [GitHub CLI](https://cli.github.com/) (`gh`) — used by `om-cto` for platform search
+
+```bash
+gh auth login          # one-time setup
+gh auth status         # verify you're authenticated
+```
 
 ### Update
 
