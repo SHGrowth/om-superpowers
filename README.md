@@ -7,10 +7,12 @@ Claude Code plugin for [Open Mercato](https://github.com/open-mercato/open-merca
 ### 1. Create an Open Mercato app
 
 ```bash
-npx create-mercato-app my-app
+npx create-mercato-app@develop my-app
 cd my-app
 yarn install
 ```
+
+> Use the `@develop` tag to get the latest modules and templates. The `latest` stable release may lag behind.
 
 ### 2. Install the plugin
 
