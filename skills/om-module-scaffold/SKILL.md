@@ -279,6 +279,13 @@ export const openApi = {
 
 Use `CrudForm` and `DataTable` from `@open-mercato/ui`. See the `backend-ui-design` skill for full component reference.
 
+**MUST consult before generating any page:**
+- `om-ds-guardian/references/page-templates.md` — canonical DS-compliant List / Create / Detail templates (use these as the starting point, not ad-hoc layouts)
+- `om-ds-guardian/references/component-guide.md` — which DS primitive to pick for each UI need (`<Input>` vs raw `<input>`, `<Select>` vs raw `<select>`, `<Switch>` vs custom toggle, etc.)
+- `om-ds-guardian/references/token-mapping.md` — semantic tokens for status colors, typography scale, focus rings, disabled state
+
+Pages emitted from this skill MUST NOT contain raw HTML form controls (`<input>`, `<select>`, `<textarea>`, `<input type="checkbox|radio">`), hardcoded status colors (`text-red-*`, `bg-green-*`), arbitrary text sizes (`text-[Npx]`), `disabled:opacity-50`, hardcoded brand hex, or inline `<svg>`. They are checked at PR time by `om-ds-guardian REVIEW` (via `om-auto-review-pr`) — getting it right here saves a round-trip.
+
 ### Page Metadata & Sidebar Navigation
 
 **File**: `src/modules/<module_id>/backend/page.meta.ts`

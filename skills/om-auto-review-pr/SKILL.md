@@ -309,6 +309,30 @@ Mandatory scope and gates:
 
 Merge findings from step 5 into the final review report. Do not duplicate the same issue twice.
 
+### 6a. Run DS Guardian REVIEW (UI-touching PRs only)
+
+If the PR diff touches any `.tsx` or `.ts` files under `packages/`, `apps/`, or any module's `backend/` / `frontend/` / `components/` directories, also execute `skills/om-ds-guardian/SKILL.md` Capability 4 (REVIEW) in the isolated worktree.
+
+```bash
+# Detect UI-touching files
+gh pr diff {prNumber} --name-only \
+  | grep -E '\.(tsx|ts)$' \
+  | grep -E '(packages/|apps/).*((backend|frontend|components|widgets|primitives)/|\.tsx$)' \
+  | grep -v '__tests__' \
+  | grep -v '\.test\.' \
+  | grep -v '\.spec\.'
+```
+
+If the filter returns any files, run DS Guardian REVIEW against them and merge its findings into the same report under a "Design System" section. Severity mapping:
+
+- DS Guardian CRITICAL (hardcoded status colors, raw `<input>`/`<select>`/`<textarea>`, missing empty/loading states, wrong selection-color contract) → Critical
+- DS Guardian WARNING (arbitrary text sizes, deprecated Notice, missing aria-labels, `disabled:opacity-50`, hardcoded brand hex, old focus rings) → Medium
+- DS Guardian INFO (inline SVG, minor inconsistencies) → Low
+
+Do not duplicate findings already raised by step 5 or step 6 — DS Guardian's checks are orthogonal to the general code-review checklist (it covers design-system surface; code-review covers architecture/security/conventions).
+
+If the filter returns no files, skip this step entirely.
+
 ### 7. Classify the result
 
 Use the same severity rules as the `code-review` skill:
