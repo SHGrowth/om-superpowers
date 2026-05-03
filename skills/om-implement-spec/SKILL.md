@@ -12,9 +12,8 @@ Implements a specification (or selected phases) end-to-end using a team of coord
 1. **Identify the spec**: Locate the target spec file(s) in `.ai/specs/` or `.ai/specs/enterprise/`.
 2. **Load context**: Read spec fully. Read all AGENTS.md files listed in the Task Router that match the affected modules/packages.
 3. **Load code-review checklist**: Read `skills/om-code-review/references/review-checklist.md` — this is the acceptance gate for every phase.
-4. **Load DS references (if the spec touches UI)**: Read `om-ds-guardian/references/component-guide.md` (which primitive to pick), `page-templates.md` (canonical List/Create/Detail templates), and `token-mapping.md` (semantic tokens). All emitted UI code MUST follow these — `om-auto-review-pr` invokes `om-ds-guardian REVIEW` on every PR and will flag raw HTML controls, hardcoded colors, arbitrary text sizes, etc.
-5. **Load lessons**: Read `.ai/lessons.md` for known pitfalls.
-6. **Scope phases**: If the user specifies phases (e.g. "phases e-h"), filter to only those. Otherwise implement all phases sequentially.
+4. **Load lessons**: Read `.ai/lessons.md` for known pitfalls.
+5. **Scope phases**: If the user specifies phases (e.g. "phases e-h"), filter to only those. Otherwise implement all phases sequentially.
 
 ## Extension Mode Decision (Mandatory First Step)
 
@@ -76,7 +75,7 @@ For every piece of code, enforce these code-review rules inline:
 | API routes | Export `openApi` and `metadata` with auth guards |
 | Entities | Standard columns, snake_case, UUID PKs |
 | Security | `findWithDecryption`, tenant scoping, zod validation |
-| UI | `CrudForm`/`DataTable`, `apiCall`, `flash()`, `LoadingMessage`/`ErrorMessage`; DS primitives only (no raw `<input>`/`<select>`/`<textarea>`); semantic tokens for colors (no `text-red-*`/`bg-green-*`); typography scale (no `text-[Npx]`) — see `om-ds-guardian/references/component-guide.md` + `token-mapping.md` |
+| UI | `CrudForm`/`DataTable`, `apiCall`, `flash()`, `LoadingMessage`/`ErrorMessage` |
 | Commands | `registerCommand`, undoable, `extractUndoPayload()` |
 | Events | `createModuleEvents()` with `as const`, subscribers export `metadata` |
 | i18n | `useT()` client, `resolveTranslations()` server, no hardcoded strings |
