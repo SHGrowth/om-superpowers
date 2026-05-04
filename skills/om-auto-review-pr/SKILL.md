@@ -309,29 +309,56 @@ Mandatory scope and gates:
 
 Merge findings from step 5 into the final review report. Do not duplicate the same issue twice.
 
-### 6a. Run DS Guardian REVIEW (UI-touching PRs only)
+### 6a. Run DS Guardian gate (UI-touching PRs only)
 
-If the PR diff touches any `.tsx` or `.ts` files under `packages/`, `apps/`, or any module's `backend/` / `frontend/` / `components/` directories, also execute `skills/om-ds-guardian/SKILL.md` Capability 4 (REVIEW) in the isolated worktree.
+If the PR diff touches any `.tsx` or `.ts` files under `packages/`, `apps/`, or any module's `backend/` / `frontend/` / `components/` directories, run the DS Guardian gate. The gate has two phases — a deterministic grep pass that runs first, then an LLM-augmented review that consumes the grep findings as input.
+
+**Phase 1 — Deterministic grep gate (fast path, ~5s).**
 
 ```bash
 # Detect UI-touching files
-gh pr diff {prNumber} --name-only \
+UI_FILES=$(gh pr diff {prNumber} --name-only \
   | grep -E '\.(tsx|ts)$' \
   | grep -E '(packages/|apps/).*((backend|frontend|components|widgets|primitives)/|\.tsx$)' \
   | grep -v '__tests__' \
   | grep -v '\.test\.' \
-  | grep -v '\.spec\.'
+  | grep -v '\.spec\.')
+
+# Run the deterministic linter. Output is one finding per line:
+#   <file>:<line>:<rule-id>:<matched-text>
+# Empty stdout means no greppable violations — the LLM phase still runs for
+# judgment cases (decoration vs status, primitive choice, missing empty/
+# loading states), but it gets a clean slate instead of having to redetect.
+GREP_FINDINGS=""
+if [ -n "$UI_FILES" ]; then
+  GREP_FINDINGS=$(echo "$UI_FILES" | bash skills/om-ds-guardian/scripts/ds-diff-check.sh)
+fi
 ```
 
-If the filter returns any files, run DS Guardian REVIEW against them and merge its findings into the same report under a "Design System" section. Severity mapping:
+If `$UI_FILES` is empty, skip the rest of step 6a entirely.
 
-- DS Guardian CRITICAL (hardcoded status colors, raw `<input>`/`<select>`/`<textarea>`, missing empty/loading states, wrong selection-color contract) → Critical
-- DS Guardian WARNING (arbitrary text sizes, deprecated Notice, missing aria-labels, `disabled:opacity-50`, hardcoded brand hex, old focus rings) → Medium
-- DS Guardian INFO (inline SVG, minor inconsistencies) → Low
+**Phase 2 — LLM-augmented REVIEW (judgment + fix language).**
 
-Do not duplicate findings already raised by step 5 or step 6 — DS Guardian's checks are orthogonal to the general code-review checklist (it covers design-system surface; code-review covers architecture/security/conventions).
+Execute `skills/om-ds-guardian/SKILL.md` Capability 4 (REVIEW) against `$UI_FILES` in the isolated worktree, **passing `$GREP_FINDINGS` as known-violations input**. The LLM's contract changes from "detect everything" to "augment what grep already caught and add what grep can't see":
 
-If the filter returns no files, skip this step entirely.
+- For every finding in `$GREP_FINDINGS`: confirm severity per the mapping below, attach a fix recipe from `references/token-mapping.md`, and downgrade or drop only with an explicit reason (e.g. "decorative use, not status semantics — DS-SKIP").
+- Then scan the diff for what grep cannot see:
+  - **Decoration vs status** — is a flagged hardcoded color decorative (chart legend, brand illustration) or status-semantic (form error, success badge)?
+  - **Primitive choice** — was `<Switch>` chosen where `<Radio>` would express the model better, or vice versa?
+  - **Missing empty/loading states** — list pages with `DataTable` but no `EmptyState`/`LoadingMessage`.
+  - **Color-as-only-info** — status conveyed by color without a label or icon.
+  - **IconButton without `aria-label`** — when the icon is not decorative.
+  - **Form structure** — `<Input>` without `<Label>` / not wrapped in `<FormField>`.
+
+Severity mapping (applies to both phases):
+
+- **Critical**: hardcoded status colors, raw `<input>`/`<select>`/`<textarea>`, missing empty/loading states, wrong selection-color contract (`data-[state=checked]:bg-primary`)
+- **Medium**: arbitrary text sizes, deprecated `Notice`, missing `aria-label` on non-decorative icon buttons, `disabled:opacity-50`, hardcoded brand hex, old focus rings (`focus:ring-2 ring-offset-2`)
+- **Low**: inline SVG, minor inconsistencies
+
+Merge the combined output into the same report under a "Design System" section. Do not duplicate findings already raised by step 5 or step 6 — DS Guardian's checks are orthogonal to the general code-review checklist (it covers design-system surface; code-review covers architecture/security/conventions).
+
+> **Why grep-first?** `ds-diff-check.sh` runs in seconds, has zero false positives on its rules, and covers ~80% of recurring DS violations (colors, raw form controls, deprecated imports, focus rings, brand hex, opacity-disabled, selection-color contract). The LLM phase still runs unconditionally — its job is judgment and fix language, not redetection. This split is a Pareto improvement: faster on the common case, more reliable on greppable rules, no coverage loss on judgment cases.
 
 ### 7. Classify the result
 

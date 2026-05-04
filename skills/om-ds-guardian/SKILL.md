@@ -362,7 +362,8 @@ These references are the source of truth for DS-compliant code. They are consume
 - `references/token-mapping.md` — Color and typography mapping tables (the source of truth for find→replace)
 - `references/component-guide.md` — When to use which component, API quick reference, MUST rules per primitive. **Required reading for any skill that generates UI code.**
 - `references/page-templates.md` — DS-compliant List/Create/Detail page templates. **Required reading for `om-module-scaffold` and `om-implement-spec` when emitting backend pages.**
-- `scripts/ds-health-check.sh` — Health check script (also lives in OM repo at `.ai/skills/ds-guardian/scripts/`)
+- `scripts/ds-health-check.sh` — Repo-wide DS health snapshot with delta tracking. Used by Capability 5 (REPORT) and at session start. Saves dated reports to `.ai/reports/`.
+- `scripts/ds-diff-check.sh` — Per-file deterministic linter for a list of changed files. Output format: `<file>:<line>:<rule-id>:<match>`. Used by `om-auto-review-pr` step 6a as the grep-first phase before LLM REVIEW. Pattern set is kept in sync with `ds-health-check.sh`.
 - `scripts/ds-migrate-colors.sh` — Color migration codemod
 - `scripts/ds-migrate-typography.sh` — Typography migration codemod
 
