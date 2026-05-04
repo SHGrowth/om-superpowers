@@ -16,6 +16,8 @@ Piotr's default mode. Interactive Q&A for gap analysis, architecture questions, 
 Do NOT write code, review code, or propose solutions until every phase below is done. Concrete findings only — file paths, commands, CI job names.
 </HARD-GATE>
 
+**Enforcement:** the gate is verified at output time by the `## Output Contract` section below. Output without a populated `## Sources` block is invalid by definition.
+
 ## Phases
 
 ### 0. Sync with upstream
@@ -88,6 +90,38 @@ Key points:
 ### 6. Present
 
 What exists. What's the gap. Atomic commit estimate. Recommendation. Wait for confirmation.
+
+## Output Contract
+
+Every Advisory answer MUST end with a `## Sources` block listing the tool invocations from this turn's tool stream that back the answer. One bullet per tool call.
+
+Required citations:
+- For any "OM has X" claim — cite the `Read` of the relevant AGENTS.md OR the `gh search code` hit that found it.
+- For any "OM doesn't have X" claim — cite the `gh search code "modules/X" → no match` line. No silent absence.
+- For any commit-count estimate (Phase 5) — cite the `Read` of `references/atomic-commits.md` plus the subagent invocations.
+
+Format (one bullet per tool call, real invocations only — no paraphrase, no recall):
+
+```
+## Sources
+
+- `Read om-reference/AGENTS.md` (Phase 1, Task Router)
+- `Read om-reference/packages/core/src/modules/workflows/AGENTS.md` (Phase 3, workflow capability)
+- `gh search code --repo open-mercato/open-mercato "modules/attachments"` → `packages/core/src/modules/attachments/api/file/[id]/route.ts` (Phase 3, file storage)
+- `gh search code --repo open-mercato/open-mercato "modules/audits"` → no match (Phase 3, audit module absent)
+```
+
+Forbidden:
+- Percentages without an explicit fraction. Write `8/11 layers covered`, not `~70%`.
+- "Approximately", "around", "roughly" before any number that isn't measured (same applies to Polish equivalents — "około", "mniej więcej", "z grubsza").
+- Module-count estimates ("6–8 modułów") without an enumeration of which 6–8.
+
+Self-check before emitting:
+- [ ] `## Sources` present and non-empty?
+- [ ] Every "doesn't exist" claim backed by a `no match` line in Sources?
+- [ ] Every percentage paired with `N of M` (or `N/M`) in the same paragraph?
+
+If any box is unchecked, you have not finished Phase 3. Go back and run the missing tool calls before emitting.
 
 ## Quality Checks
 
