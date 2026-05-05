@@ -41,6 +41,32 @@ All module paths use `src/modules/<module>/` as shorthand.
 - Subscribers: `subscribers/*.ts` — export default handler + `metadata` with `{ event: string, persistent?: boolean, id?: string }`
 - Workers: `workers/*.ts` — export default handler + `metadata` with `{ queue: string, id?: string, concurrency?: number }`
 
+### Portal Pages (Frontend sub-convention)
+
+Customer portal pages live under the standard frontend tree with a required `[orgSlug]` segment:
+
+- `frontend/[orgSlug]/portal/<path>/page.tsx` → `/{orgSlug}/portal/<path>`
+- `[orgSlug]` MUST be the first segment — portal auth, tenant resolution, and the portal shell all assume this shape
+- Any third-party module can contribute portal pages this way; the `(frontend)` catch-all handles the route
+
+Portal pages MUST ship a sibling `page.meta.ts` (see [packages/ui/AGENTS.md → Portal Extension](../ui/AGENTS.md)). That file:
+- Declares `requireCustomerAuth` / `requireCustomerFeatures` — enforced server-side by the `(frontend)` catch-all via `CustomerRbacService`
+- Optionally declares a `nav` block — when present, the page is auto-listed in the portal sidebar by `/api/customer_accounts/portal/nav` (RBAC-filtered)
+
+Example:
+```typescript
+// frontend/[orgSlug]/portal/orders/page.meta.ts
+import type { PageMetadata } from '@open-mercato/shared/modules/registry'
+
+export const metadata: PageMetadata = {
+  requireCustomerAuth: true,
+  requireCustomerFeatures: ['portal.orders.view'],
+  nav: { label: 'Orders', labelKey: 'orders.nav.title', group: 'main', order: 20 },
+}
+```
+
+Granting the feature to a customer role is sufficient for the entry to appear — no separate menu-injection widget is required. For pages without a sidebar entry (detail/create/edit), omit the `nav` block. For external links without a backing page, use `usePortalInjectedMenuItems` widgets instead.
+
 ### Page Metadata
 
 - Prefer colocated `page.meta.ts`, `<name>.meta.ts`, or folder `meta.ts`
@@ -95,6 +121,19 @@ Follow the customers module API patterns (CRUD factory + query engine):
 - Wire custom field helpers for create/update/response normalization
 - Set `indexer: { entityType }` in `makeCrudRoute`
 - Reference: `src/modules/customers/api/people/route.ts`
+
+### Entity Schema And Migration Workflow
+
+When adding or changing a MikroORM entity, coding agents MUST read this section, the customers reference module guide, and `packages/cli/AGENTS.md` before editing.
+
+1. Update `data/entities.ts` using MikroORM v7 imports: decorators from `@mikro-orm/decorators/legacy`, types from `@mikro-orm/core`.
+2. Run `yarn generate` when module structure or entity discovery changed.
+3. Treat `yarn db:generate` as a schema-diff probe. Review every generated file before keeping it.
+4. Keep only SQL for the intended module/entity change. If the generator emits unrelated migrations because another module's snapshot is stale, remove those files from the diff instead of committing them.
+5. If you author a scoped SQL migration yourself to avoid unrelated generated churn, base it on the entity metadata and existing module migration style, then update that module's `migrations/.snapshot-open-mercato.json` to the post-change schema in the same commit.
+6. Do not run `yarn db:migrate` unless the user explicitly asks to apply migrations. PRs should normally contain the migration file and snapshot, not local DB state.
+
+For new CRUD modules, use `packages/core/src/modules/customers/AGENTS.md` as the file-structure reference and copy the command/API patterns before inventing new ones.
 
 ## Module Setup Convention
 
@@ -437,7 +476,8 @@ await emitCrudSideEffects({ ... })
 - Module-scoped with MikroORM: files live in `src/modules/<module>/migrations/`
 - Generate: `yarn db:generate` (iterates all modules)
 - Apply: `yarn db:migrate` (ordered, directory first)
-- **Never hand-write migration files.** Update ORM entities, let `yarn db:generate` emit SQL.
+- Default: update ORM entities and let `yarn db:generate` emit SQL.
+- Exception: when generated output includes unrelated snapshot drift, keep or write only the intended SQL and update that module's `.snapshot-open-mercato.json` in the same change.
 
 ## Database Entities
 

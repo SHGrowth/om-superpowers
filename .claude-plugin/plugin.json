@@ -1,7 +1,7 @@
 {
   "name": "om-superpowers",
   "description": "Claude Code plugin for Open Mercato developers — 21 skills covering the full OM lifecycle",
-  "version": "1.7.2",
+  "version": "1.7.3",
   "author": {
     "name": "Open Mercato",
     "email": "dev@open-mercato.com"
