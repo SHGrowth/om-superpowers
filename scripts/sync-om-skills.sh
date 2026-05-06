@@ -7,8 +7,10 @@
 #   2. packages/create-app/agentic/shared/ai/skills/ — app-building skills only in create-app
 #
 # Synced skills keep the om- prefix for plugin namespacing but their content comes from upstream.
-# om-superpowers unique skills (om-cto, om-product-manager, om-ux, om-user-proxy, om-toolkit-review)
-# are NOT synced — they are maintained in this repo.
+# om-superpowers unique skills (om-cto, om-product-manager, om-ux, om-user-proxy,
+# om-toolkit-review, om-auto-create-pr, om-auto-continue-pr) are NOT synced — they are
+# maintained in this repo. The auto-create-pr / auto-continue-pr pair forked from upstream
+# on 2026-05-06 to land per-commit gates (see skills/_shared/per-commit-gates.md).
 
 set -euo pipefail
 
@@ -164,8 +166,11 @@ CORE_SKILL_PAIRS=(
   "om-integration-builder:integration-builder"
   "om-integration-tests:integration-tests"
   # Auto-* skills (execution engine)
-  "om-auto-create-pr:auto-create-pr"
-  "om-auto-continue-pr:auto-continue-pr"
+  # NOTE: om-auto-create-pr and om-auto-continue-pr are now CUSTOM in this repo
+  # (per-commit gates layered on top — see skills/_shared/per-commit-gates.md
+  # and docs/specs/2026-05-06-ralph-loop-per-commit-gates.md). They are not
+  # synced; upstream changes to auto-create-pr/auto-continue-pr must be
+  # reviewed and merged manually so the gate edits are preserved.
   "om-auto-review-pr:auto-review-pr"
 )
 
