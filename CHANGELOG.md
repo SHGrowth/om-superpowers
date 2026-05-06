@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.10.1
+
+### Documentation
+
+- `README.md` — added a callout under the Automation skills table describing the new tests-with-code gate (introduced in v1.10.0). Skimmers reading the README to understand `om-auto-create-pr` / `om-auto-continue-pr` behavior will now see the gate without having to dig into the CHANGELOG. Links to the spec and baseline.
+
+No code changes. Manifest bump only so `/plugins marketplace update om-superpowers` actually picks up the README change for users on v1.10.0.
+
 ## 1.10.0
 
 ### Added

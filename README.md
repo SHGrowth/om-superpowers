@@ -163,6 +163,8 @@ The plugin auto-detects OM projects on session start by checking for any of: `@o
 | `om-auto-review-pr` | Automatically review an open pull request |
 | `om-auto-continue-pr` | Continue work on an existing pull request |
 
+> **As of v1.10.0**, `om-auto-create-pr` and `om-auto-continue-pr` enforce a **tests-with-code gate** at commit time: any commit that stages source code (`.ts`/`.tsx`/`.js`/`.jsx`/`.mjs`/`.cjs` outside `__tests__/` and not matching `*.test.*` / `*.spec.*`) without test files is blocked. The agent then either adds tests in the same commit or splits the staged set. Rationale and exemptions in [`docs/specs/2026-05-06-test-coverage-at-commit.md`](docs/specs/2026-05-06-test-coverage-at-commit.md); baseline data that drove the scope in [`docs/specs/2026-05-06-ralph-loop-baseline.md`](docs/specs/2026-05-06-ralph-loop-baseline.md).
+
 ### Meta
 
 | Skill | When to use |
