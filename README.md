@@ -1,6 +1,6 @@
 # om-superpowers
 
-Claude Code plugin for [Open Mercato](https://github.com/open-mercato/open-mercato) developers. 20 skills covering the full OM lifecycle — from business requirements through implementation to code review.
+Claude Code plugin for [Open Mercato](https://github.com/open-mercato/open-mercato) developers. 18 user-facing skills covering the full OM lifecycle — from business requirements through implementation to code review. Specialist sub-tasks (pre-implementation analysis, module ejection, toolkit audit) are demoted to references under their natural parent skills and load on demand.
 
 ## Install
 
@@ -131,10 +131,9 @@ The plugin auto-detects OM projects on session start by checking for any of: `@o
 | Skill | When to use |
 |-------|-------------|
 | `om-product-manager` | Defining business requirements — BEFORE any spec or code exists |
-| `om-cto` | Gap analysis, architecture decisions, or orchestrating the full spec-to-build pipeline |
+| `om-cto` | Gap analysis, architecture decisions, orchestrating the full spec-to-build pipeline, pre-impl BC/risk analysis, or auditing the skill corpus |
 | `om-ux` | UI architecture review — navigation, task completion, cognitive load |
 | `om-spec-writing` | Writing a functional specification with architectural compliance |
-| `om-pre-implement-spec` | Pre-implementation backward-compatibility and risk analysis |
 
 ### Implementation
 
@@ -143,8 +142,7 @@ The plugin auto-detects OM projects on session start by checking for any of: `@o
 | `om-implement-spec` | Multi-phase spec implementation with coordinated subagents |
 | `om-module-scaffold` | Bootstrapping a new module from scratch (entity, API, pages, ACL) |
 | `om-data-model-design` | Entity design, relationships, migration lifecycle |
-| `om-system-extension` | Extending core modules via UMES (enrichers, widgets, interceptors, guards) |
-| `om-eject-and-customize` | Ejecting a core module when UMES isn't enough |
+| `om-system-extension` | Extending core modules via UMES (enrichers, widgets, interceptors, guards) — also handles ejection as a last-resort path |
 | `om-integration-builder` | Building provider packages (payment, shipping, data sync) |
 | `om-backend-ui-design` | Backend UI pages within the OM component library |
 
@@ -155,6 +153,7 @@ The plugin auto-detects OM projects on session start by checking for any of: `@o
 | `om-code-review` | CI/CD verification gate with full OM compliance checklist |
 | `om-integration-tests` | Creating or running Playwright integration tests |
 | `om-troubleshooter` | Diagnosing errors, 404s, missing modules, broken widgets |
+| `om-ds-guardian` | Design-system compliance — runs automatically inside auto-review-pr and scaffolders |
 
 ### Automation
 
@@ -169,7 +168,16 @@ The plugin auto-detects OM projects on session start by checking for any of: `@o
 | Skill | When to use |
 |-------|-------------|
 | `om-user-proxy` | User's decision proxy — resolves questions from context, escalates only business judgment calls |
-| `om-toolkit-review` | Auditing the skill corpus for context waste, duplication, stale references |
+
+### Demoted to references (loaded on demand by their parent)
+
+These specialist tools are not user-invocable as top-level skills. The parent skill loads them when needed:
+
+| Reference | Parent | When the parent loads it |
+|-----------|--------|--------------------------|
+| `om-cto/references/pre-impl-analysis.md` | `om-cto` | Pre-implementation BC/risk audit at the spec→impl gate |
+| `om-system-extension/references/eject.md` | `om-system-extension` | When UMES extensions are insufficient and ejection is required |
+| `om-cto/references/toolkit-audit.md` | `om-cto` | Auditing the skill corpus for context waste or trigger overlap |
 
 ## Architecture
 
@@ -212,8 +220,8 @@ git add skills/ om-reference/ && git commit -m "chore: sync OM skills from upstr
 
 | Type | Skills | Maintained in |
 |------|--------|---------------|
-| **Custom** | om-product-manager, om-cto, om-ux, om-user-proxy, om-toolkit-review | This repo |
-| **Synced** | All others (15 skills) | [open-mercato/open-mercato](https://github.com/open-mercato/open-mercato) |
+| **Custom** | om-product-manager, om-cto, om-ux, om-user-proxy | This repo |
+| **Synced** | All others (top-level skills + demoted references — see `scripts/sync-om-skills.sh` for the full mapping including `DEMOTED_SKILL_PAIRS`) | [open-mercato/open-mercato](https://github.com/open-mercato/open-mercato) |
 
 ## Contributing
 

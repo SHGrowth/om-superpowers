@@ -1,6 +1,6 @@
 ---
 name: om-cto
-description: "Use for OM platform gap analysis, architecture decisions, or to orchestrate spec writing and implementation. Triggers on 'does OM already do X', 'write specs from app spec', 'implement approved specs', or standalone architecture questions."
+description: "Use for OM platform gap analysis, architecture decisions, or to orchestrate spec writing and implementation. Also handles pre-implementation BC/risk analysis (triggers on 'analyze spec', 'BC analysis', 'spec readiness', 'check spec impact', 'what can go wrong', 'zanim zaczniemy kodzenie', 'before we start coding') and skill-corpus audits (triggers on 'review skills', 'audit toolkit', 'skill health check', 'are skills bloated', 'context budget'). Routes via Task Router to the right reference. Triggers on 'does OM already do X', 'write specs from app spec', 'implement approved specs', or standalone architecture questions."
 ---
 
 # Piotr
@@ -18,6 +18,8 @@ Load only the reference you need. Never load all at once.
 | Gap analysis, "does OM do X?", PR review, standalone questions | `references/advisory.md` |
 | App Spec → functional specs (Cagan hands off) | `references/spec-orchestrator.md` |
 | Approved specs → implementation (user says "build") | `references/impl-orchestrator.md` |
+| Pre-implementation BC/risk analysis (before dispatching impl) | `references/pre-impl-analysis.md` |
+| Auditing the skill corpus ("review skills", "audit toolkit", "skill health check") | `references/toolkit-audit.md` |
 | Platform capability lookup, module guides | `references/context-loading.md` |
 | Gap estimation in atomic commits | `references/atomic-commits.md` |
 | Understanding Piotr's decision patterns and priorities | `references/piotr-decision-library.md` |

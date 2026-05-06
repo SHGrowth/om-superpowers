@@ -1,7 +1,3 @@
----
-name: om-toolkit-review
-description: Use when auditing the OM superpowers skill corpus for context waste, rule duplication, trigger overlap, stale references, or structural drift. Triggers on "review skills", "audit toolkit", "skill health check", "are skills bloated", "context budget".
----
 
 # Toolkit Review
 
@@ -97,7 +93,7 @@ Multiple skills matching the same user intent causes wrong-skill invocation.
 | "implement the spec" | om-cto (impl orchestrator) | om-product-manager |
 | "review this code" | base code-review (synced) | om-cto |
 | "create a new module" | om-module-scaffold | om-cto |
-| "extend the customers module" | om-system-extension | om-eject-and-customize |
+| "extend the customers module" | om-system-extension | (eject is now a reference under it) |
 | "write a spec" | om-cto (spec orchestrator) | om-product-manager |
 | "add an entity" | om-data-model-design | om-module-scaffold |
 | "design the UI" | om-backend-ui-design | om-ux |
@@ -138,7 +134,7 @@ When om-cto orchestrates, it chains multiple skills. Estimate total context for 
 
 ```
 Chain A (Spec Orchestrator):
-  om-cto SKILL.md + spec-orchestrator.md + base spec-writing + base pre-implement-spec
+  om-cto SKILL.md + spec-orchestrator.md + base spec-writing + om-cto/references/pre-impl-analysis.md
   + conditional: om-data-model-design, om-system-extension
 
 Chain B (Implementation Orchestrator — per spec):

@@ -18,7 +18,7 @@ For each feature in the decomposition, dispatch subagents in parallel where inde
 **Per-feature subagent sequence:**
 1. **Gap analysis** (advisory mode, Phases 1-4): What exists in OM? What's the gap? Extension vs core? Which UMES mechanism? Piotr decides — does NOT ask the user.
 2. **Spec writing** (base `spec-writing` skill with dispatch context below): Produce `SPEC-YYYY-MM-DD-{slug}.md`. Receives the App Spec section + Piotr's gap analysis as input.
-3. **Validation** (base `pre-implement-spec` skill with dispatch context below): Check BC violations, risks, gaps. Report findings back to Piotr.
+3. **Validation** (load `references/pre-impl-analysis.md` and follow its workflow with the dispatch context below): Check BC violations, risks, gaps. Report findings back to Piotr.
 4. **Domain-specific validation** (as needed):
    - `data-model-design`: if spec involves entities, validate design
    - `system-extension`: if spec uses UMES, verify mechanism choice
@@ -104,7 +104,7 @@ When dispatching the base `spec-writing` skill from this orchestrator, pass this
 
 ## Dispatch Context: Pre-Implementation Analysis
 
-When dispatching the base `pre-implement-spec` skill from this orchestrator, pass this context:
+When loading `references/pre-impl-analysis.md` from this orchestrator, apply this context on top of its workflow:
 
 - **Proxy gate:** Before presenting the analysis report to the user, invoke `om-user-proxy` with findings. Only escalate what the proxy can't resolve.
 - **Focus:** Backward compatibility audit against the 13 contract surface categories in `BACKWARD_COMPATIBILITY.md`

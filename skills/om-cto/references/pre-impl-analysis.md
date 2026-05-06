@@ -1,7 +1,3 @@
----
-name: om-pre-implement-spec
-description: Analyze a specification before implementation to assess backward compatibility impact, identify risks, find gaps, and produce a readiness report. Use when the user says "analyze spec", "pre-implement", "check spec impact", "spec readiness", "BC analysis", "backward compatibility check", "what can go wrong", or "spec gap analysis". Produces an actionable report with BC violations, missing sections, risk assessment, and suggested spec improvements.
----
 
 # Pre-Implement Spec Skill
 

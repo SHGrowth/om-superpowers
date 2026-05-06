@@ -94,6 +94,56 @@ sync_skill() {
   echo ""
 }
 
+# Sync a "demoted" skill: upstream skill content is fetched, frontmatter is stripped,
+# and the body is written as a reference file under a parent skill's references/ dir.
+# This keeps the upstream content flowing while removing the demoted skill from the
+# user-facing top-level skill list.
+#
+# Args:
+#   $1 parent_skill   — local parent skill name (e.g., om-cto)
+#   $2 ref_filename   — destination reference filename (e.g., pre-impl-analysis.md)
+#   $3 remote_name    — upstream skill directory name (e.g., pre-implement-spec)
+#   $4 base_url       — CORE_SKILLS_URL or APP_SKILLS_URL
+sync_demoted_skill() {
+  local parent_skill="$1"
+  local ref_filename="$2"
+  local remote_name="$3"
+  local base_url="$4"
+  local dest="${SKILLS_DIR}/${parent_skill}/references/${ref_filename}"
+
+  echo "Demoting ${remote_name} → ${parent_skill}/references/${ref_filename}..."
+
+  # Fetch source SKILL.md to a temp file
+  local tmp
+  tmp=$(mktemp)
+  if ! fetch_file "${base_url}/${remote_name}/SKILL.md" "$tmp"; then
+    rm -f "$tmp"
+    return 1
+  fi
+
+  # Strip YAML frontmatter only — leave any in-body horizontal rules (---) intact.
+  # If line 1 is ---, enter frontmatter mode and strip until the closing ---.
+  # Otherwise treat the file as having no frontmatter and pass through verbatim.
+  mkdir -p "$(dirname "$dest")"
+  awk 'BEGIN { in_fm = 0 }
+       NR == 1 && /^---$/ { in_fm = 1; next }
+       in_fm && /^---$/   { in_fm = 0; next }
+       in_fm              { next }
+                          { print }' "$tmp" > "$dest"
+
+  rm -f "$tmp"
+
+  # Rewrite upstream .ai/skills/ paths in the demoted reference too
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    sed -i '' 's|\.ai/skills/\([a-z_-]*\)/|skills/om-\1/|g' "$dest"
+  else
+    sed -i 's|\.ai/skills/\([a-z_-]*\)/|skills/om-\1/|g' "$dest"
+  fi
+
+  echo "  → ${dest} (frontmatter stripped)"
+  echo ""
+}
+
 # =====================================================================
 # Section 1: Sync skills from OM core .ai/skills/ (source of truth)
 # =====================================================================
@@ -108,7 +158,7 @@ CORE_SKILL_PAIRS=(
   "om-implement-spec:implement-spec"
   "om-code-review:code-review"
   "om-spec-writing:spec-writing"
-  "om-pre-implement-spec:pre-implement-spec"
+  # om-pre-implement-spec is demoted — see DEMOTED_SKILL_PAIRS below
   # Overlap skills synced as-is
   "om-backend-ui-design:backend-ui-design"
   "om-integration-builder:integration-builder"
@@ -139,7 +189,7 @@ echo ""
 # Skills that only exist in create-mercato-app, not in .ai/skills/
 APP_SKILL_PAIRS=(
   "om-data-model-design:data-model-design"
-  "om-eject-and-customize:eject-and-customize"
+  # om-eject-and-customize is demoted — see DEMOTED_SKILL_PAIRS below
   "om-module-scaffold:module-scaffold"
   "om-system-extension:system-extension"
   "om-troubleshooter:troubleshooter"
@@ -149,6 +199,47 @@ for pair in "${APP_SKILL_PAIRS[@]}"; do
   local_name="${pair%%:*}"
   remote_name="${pair##*:}"
   if sync_skill "$local_name" "$remote_name" "$APP_SKILLS_URL" "packages/create-app/agentic/shared/ai/skills"; then
+    skills_ok=$((skills_ok + 1))
+  else
+    skills_fail=$((skills_fail + 1))
+  fi
+done
+
+# =====================================================================
+# Section 2b: Sync demoted skills (as references under parent skills)
+# =====================================================================
+#
+# These upstream skills are not exposed as user-facing top-level skills in this
+# plugin. Their content is fetched from upstream, frontmatter is stripped, and
+# the body is written as a reference under the named parent skill. The parent
+# skill's SKILL.md announces the reference and routes to it on demand.
+#
+# Format: parent-skill:ref-filename:upstream-skill-name:source(core|app)
+
+echo "=== Syncing demoted skills (as references under parents) ==="
+echo ""
+
+DEMOTED_SKILL_PAIRS=(
+  "om-cto:pre-impl-analysis.md:pre-implement-spec:core"
+  "om-system-extension:eject.md:eject-and-customize:app"
+)
+
+for pair in "${DEMOTED_SKILL_PAIRS[@]}"; do
+  IFS=':' read -ra parts <<< "$pair"
+  parent_skill="${parts[0]}"
+  ref_filename="${parts[1]}"
+  remote_name="${parts[2]}"
+  source="${parts[3]}"
+
+  case "$source" in
+    core) base_url="$CORE_SKILLS_URL" ;;
+    app)  base_url="$APP_SKILLS_URL" ;;
+    *)    echo "  WARN: unknown source '${source}' for ${remote_name} — skipping"
+          skills_fail=$((skills_fail + 1))
+          continue ;;
+  esac
+
+  if sync_demoted_skill "$parent_skill" "$ref_filename" "$remote_name" "$base_url"; then
     skills_ok=$((skills_ok + 1))
   else
     skills_fail=$((skills_fail + 1))
