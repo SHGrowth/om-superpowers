@@ -155,9 +155,25 @@ From the resume point forward, apply the **same phase-by-phase loop** documented
 3. Run targeted validation for affected packages (unit tests, typecheck, i18n, `yarn generate` / `yarn build:packages` / `yarn db:generate` as relevant).
 4. Re-read the diff to remove scope creep.
 5. Grep changed non-test files for raw `em.findOne(` / `em.find(` and replace with `findOneWithDecryption` / `findWithDecryption`.
-6. Commit with a conventional-commit message per Step or per Phase.
-7. Flip the Progress checkbox to `- [x]` and append the commit SHA. Commit that update as a dedicated `docs(runs): mark {slug} Phase N step X complete` commit.
-8. Push after every Phase so the remote always has the latest state.
+6. **Tests-with-code gate** — before `git commit`, run this mechanical check on the staged index. If it blocks, add or update tests in the same commit, or split the staged work so test-bearing changes land separately:
+
+   ```bash
+   STAGED=$(git diff --cached --name-only)
+   CODE=$(echo "$STAGED" | grep -E '\.(ts|tsx|js|jsx|mjs|cjs)$' | grep -v -E '(__tests__|\.test\.|\.spec\.)' || true)
+   TESTS=$(echo "$STAGED" | grep -E '(__tests__|\.test\.|\.spec\.)' || true)
+   if [ -n "$CODE" ] && [ -z "$TESTS" ]; then
+     echo "BLOCK: code change without tests in the same commit:"
+     echo "$CODE"
+     echo "Add or update tests in this Step's commit, or split work so the test lands with the code."
+     exit 1
+   fi
+   ```
+
+   Rationale and exemptions documented in `docs/specs/2026-05-06-test-coverage-at-commit.md`. Single mechanical check — no retry counter, no Gate log, no `needs-human` label. If the check fails, fix the staged set and re-run.
+
+7. Commit with a conventional-commit message per Step or per Phase.
+8. Flip the Progress checkbox to `- [x]` and append the commit SHA. Commit that update as a dedicated `docs(runs): mark {slug} Phase N step X complete` commit.
+9. Push after every Phase so the remote always has the latest state.
 
 Do not alter work already completed in earlier commits. Do not reorder or rewrite history on the PR branch.
 

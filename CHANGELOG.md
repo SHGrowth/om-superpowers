@@ -1,5 +1,53 @@
 # Changelog
 
+## 1.10.0
+
+### Added
+
+- **Tests-with-code gate at commit time.** `om-auto-create-pr` step 6 and `om-auto-continue-pr` step 4 now run a ~10-line shell check on the staged index before `git commit`. If the staged diff contains source code (`.ts`/`.tsx`/`.js`/`.jsx`/`.mjs`/`.cjs` outside `__tests__/` and not matching `*.test.*` / `*.spec.*`) but no test files, the gate blocks the commit. The agent then either adds tests in the same commit or splits the staged set so test-bearing changes land separately. No retry counter, no `needs-human` label, no audit log — single mechanical check.
+
+### Why narrowed from v1.9.0's four-gate proposal
+
+v1.9.0 proposed four per-commit gates (DS, unit tests, e2e-when-applicable, code-review fast subset) and was yanked the same day after internal review surfaced two critical bugs and a process violation (see v1.9.1 entry).
+
+The follow-up baseline (`docs/specs/2026-05-06-ralph-loop-baseline.md`, N=5 most recent `om-auto-create-pr` PRs, 15 code-bearing commits) found:
+
+- **Tests-with-code gap:** 0/15 commits landed tests in the same commit as code. Real, measurable, mechanical to fix → ships in v1.10.0.
+- **DS gap:** 0 DS issues caught at end-of-PR across the 5 PRs. Sample is backend-biased; no evidence of a gap → defer.
+- **E2E gap:** 0/2 same-commit landing rate, but N=2 doesn't clear any decision threshold → defer to v1.11+ pending re-baseline of UI-heavy PRs.
+- **Code-review fast subset:** ~3/15 mechanical issues catchable; 100% already auto-fixed by existing end-of-PR `om-auto-review-pr` autofix pass → drop. Marginal value over existing infrastructure.
+
+Conclusion: only the test-coverage gap was real in this sample. v1.10.0 ships that one gate, nothing else.
+
+### Specs
+
+- New: `docs/specs/2026-05-06-test-coverage-at-commit.md` (the spec that drives v1.10.0).
+- Evidence: `docs/specs/2026-05-06-ralph-loop-baseline.md` (the N=5 baseline that narrowed scope).
+- Superseded: `docs/specs/2026-05-06-ralph-loop-per-commit-gates.md` (v1.9.0's spec, marked SUPERSEDED at the top, body preserved as historical record).
+
+### Verification plan for v1.11.0
+
+- Re-baseline the next 5 `om-auto-create-pr` PRs after v1.10.0 ships.
+- Success criterion: same-commit test landing rate ≥ 90% (vs. 0% baseline).
+- Failure criterion: rate < 50% — investigate root cause before adding more gates.
+- At the same time, re-baseline UI PRs (e2e gate candidate) and end-of-PR DS findings (DS gate candidate). If either gap holds with N=5, ship in v1.11.0.
+
+### Migration notes
+
+- Update with `/plugins marketplace update om-superpowers`.
+- The gate is mechanical: if the agent stages source code without tests, the check blocks the commit. Existing patterns where tests landed in a separate later commit will need to be revised — either include tests in the same commit, or split the staged set so test-immune changes (config, docs, package.json) land in their own commit.
+- No new files were added. No `_shared/` directory. The check is inline in two SKILL.md files. If a third caller appears later, extract to a shared reference then.
+
+### Files touched
+
+- `skills/om-auto-create-pr/SKILL.md` — step 6 gains the gate, subsequent steps renumbered.
+- `skills/om-auto-continue-pr/SKILL.md` — step 4 gains the gate, subsequent steps renumbered.
+- `.claude-plugin/plugin.json` + `.claude-plugin/marketplace.json` — version 1.10.0.
+- `CHANGELOG.md` — this entry.
+- `docs/specs/2026-05-06-test-coverage-at-commit.md` — new spec.
+- `docs/specs/2026-05-06-ralph-loop-baseline.md` — baseline evidence (already shipped in v1.9.1 trail).
+- `docs/specs/2026-05-06-ralph-loop-per-commit-gates.md` — v1.9.0 spec, marked SUPERSEDED at the top.
+
 ## 1.9.1
 
 ### Rollback of v1.9.0
