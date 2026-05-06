@@ -74,7 +74,7 @@ Do NOT rely on static checklists — OM ships faster than any checklist can trac
 5b. **Portal page** — if persona is CustomerUser (§2), custom portal page from §3.5 spec. Estimate per page in gap analysis based on: data fetching complexity, form validation, real-time events, role-conditional content. Don't use defaults — each page is different.
 6. **n8n workflow** — if it's external orchestration, LLM calls, or scheduled processing → n8n with `open-mercato/n8n-nodes`. Keep LLM/external API work out of OM.
 7. **Separate package** — if it's a provider/integration, it's a `packages/` workspace
-8. **New module code** — only if 1-7 failed. Explain why. Note that `om-module-scaffold` or `om-eject-and-customize` will be invoked later during implementation — do NOT invoke them during advisory/spec phases.
+8. **New module code** — only if 1-7 failed. Explain why. Note that `om-module-scaffold` or the eject-and-customize playbook (now `skills/om-system-extension/references/eject.md`) will be invoked later during implementation — do NOT invoke them during advisory/spec phases.
 
 ### 5. Estimate gaps in atomic commits (Ralph loop)
 
