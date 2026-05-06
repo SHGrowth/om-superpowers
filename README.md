@@ -167,6 +167,10 @@ The plugin auto-detects OM projects on session start by checking for any of: `@o
 
 > **As of v1.11.0**, on session start the plugin auto-detects in-progress runs in `.ai/runs/`, approved specs in `.ai/specs/`, or `app-spec/` ideation state, and injects a specific actionable command into the agent's context. Vague prompts like "continue" or "finish this" route to the right skill instead of ad-hoc Bash. See [hooks/session-start](hooks/session-start) for the detection logic.
 
+> **As of v1.11.2**, the tests-with-code gate also fires on `om-auto-review-pr` autofix commits. Three entry points (create / continue / review-autofix), one gate, same shape.
+
+> **As of v1.11.3**, duplicate-work prevention runs in two layers. The SessionStart hook calls `gh pr list` and surfaces any open PR whose body contains a `Tracking plan:` line — so plans on other branches (invisible to the local `.ai/runs/` scan) become visible at session start. `om-auto-create-pr` step 0 then runs a keyword-overlap check (`gh pr list --search "<spec/module> in:title,body"`) before claiming a slug; on match, the skill stops and asks the user via `AskUserQuestion` whether to resume the existing PR via `om-auto-continue-pr`, proceed in parallel, or abort. Soft surfacing + hard enforcement, layered.
+
 #### Autonomous Ralph-style runs
 
 For unattended end-to-end execution against an in-progress PR, use Claude Code's harness `/loop` skill — no custom wrapper needed:

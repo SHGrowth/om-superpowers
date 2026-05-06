@@ -1,6 +1,6 @@
 ---
 name: om-cto
-description: "Use for OM platform gap analysis, architecture decisions, or to orchestrate spec writing and implementation. Also handles pre-implementation BC/risk analysis (triggers on 'analyze spec', 'BC analysis', 'spec readiness', 'check spec impact', 'what can go wrong', 'zanim zaczniemy kodzenie', 'before we start coding') and skill-corpus audits (triggers on 'review skills', 'audit toolkit', 'skill health check', 'are skills bloated', 'context budget'). Routes via Task Router to the right reference. Triggers on 'does OM already do X', 'write specs from app spec', 'implement approved specs', or standalone architecture questions."
+description: "Use for OM platform gap analysis, architecture decisions, or to orchestrate spec writing and implementation. Also handles pre-implementation BC/risk analysis (triggers on 'analyze spec', 'BC analysis', 'spec readiness', 'check spec impact', 'what can go wrong', 'before we start coding') and skill-corpus audits (triggers on 'review skills', 'audit toolkit', 'skill health check', 'are skills bloated', 'context budget'). Routes via Task Router to the right reference. Triggers on 'does OM already do X', 'write specs from app spec', 'implement approved specs', or standalone architecture questions."
 ---
 
 # Piotr

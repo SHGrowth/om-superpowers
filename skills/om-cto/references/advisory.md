@@ -113,8 +113,8 @@ Format (one bullet per tool call, real invocations only — no paraphrase, no re
 
 Forbidden:
 - Percentages without an explicit fraction. Write `8/11 layers covered`, not `~70%`.
-- "Approximately", "around", "roughly" before any number that isn't measured (same applies to Polish equivalents — "około", "mniej więcej", "z grubsza").
-- Module-count estimates ("6–8 modułów") without an enumeration of which 6–8.
+- "Approximately", "around", "roughly", or any equivalent hedge in any language before a number that isn't measured.
+- Module-count estimates ("6–8 modules") without an enumeration of which 6–8.
 
 Self-check before emitting:
 - [ ] `## Sources` present and non-empty?

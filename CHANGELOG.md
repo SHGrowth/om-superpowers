@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.11.4
+
+### Documentation
+
+- `README.md` — added two callouts under the Automation skills table for behavior changes that shipped in v1.11.2 (auto-review-pr autofix gate) and v1.11.3 (duplicate-work prevention via `gh pr list` keyword overlap check). Skimmers reading the README to understand `om-auto-create-pr` / `om-auto-continue-pr` / `om-auto-review-pr` will now see all three layers without digging into the CHANGELOG.
+
+### Removed
+
+- **All Polish-language text removed from active skills, hooks, and references.** Owner directive: skills/docs are English-only. Three places had active Polish:
+  - `hooks/session-start` — removed `"co dalej"` and `"kontynuuj"` from the vague-prompt example list in the entry-point block. Replaced with English equivalents (`"what's next"`, `"resume"`).
+  - `skills/om-cto/SKILL.md` — removed the `"zanim zaczniemy kodzenie"` trigger phrase from the description frontmatter. The English equivalent (`"before we start coding"`) remains.
+  - `skills/om-cto/references/advisory.md` — replaced the Polish-equivalents list (`"około"`, `"mniej więcej"`, `"z grubsza"`) for hedge-word ban with the language-agnostic phrasing `"or any equivalent hedge in any language"`. Same semantic ban, no Polish strings.
+
+CHANGELOG entries from prior releases (v1.7.2, v1.8.0, v1.11.0) that mention Polish phrases as historical context are preserved as-is — historical record should not be rewritten.
+
+### Process notes (lessons)
+
+- v1.11.3 shipped a behavior change without a matching README callout — same gap as v1.10.0 → v1.10.1. Caught only when explicitly asked to audit "shipped in pro way?" Saved as a feedback memory: README updates for behavior changes belong in the SAME commit as the behavior, not deferred.
+- Polish trigger phrases had crept in across three releases (v1.7.2, v1.8.0, v1.11.0) without a written rule prohibiting them. Owner directive on 2026-05-07 establishes the rule going forward: skills/docs are English-only. Saved as a feedback memory.
+
+### Files touched
+
+- `README.md` — added two callouts under the Automation skills table.
+- `hooks/session-start` — removed two Polish phrases from the entry-point block's vague-prompt example list.
+- `skills/om-cto/SKILL.md` — removed one Polish trigger phrase from the description frontmatter.
+- `skills/om-cto/references/advisory.md` — replaced Polish-equivalents list with language-agnostic phrasing.
+- `.claude-plugin/plugin.json` + `.claude-plugin/marketplace.json` — version 1.11.4.
+- `CHANGELOG.md` — this entry.
+
 ## 1.11.3
 
 ### Added — duplicate-work prevention (two layers)
