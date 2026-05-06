@@ -234,8 +234,10 @@ git add skills/ om-reference/ && git commit -m "chore: sync OM skills from upstr
 
 | Type | Skills | Maintained in |
 |------|--------|---------------|
-| **Custom** | om-product-manager, om-cto, om-ux, om-user-proxy | This repo |
+| **Custom** | om-product-manager, om-cto, om-ux, om-user-proxy, om-auto-create-pr, om-auto-continue-pr, om-auto-review-pr | This repo |
 | **Synced** | All others (top-level skills + demoted references — see `scripts/sync-om-skills.sh` for the full mapping including `DEMOTED_SKILL_PAIRS`) | [open-mercato/open-mercato](https://github.com/open-mercato/open-mercato) |
+
+The auto-* trio forked from upstream across two releases to land the **tests-with-code gate** at every commit point: v1.10.0 added it to `om-auto-create-pr` step 6 and `om-auto-continue-pr` step 4; v1.11.2 added it to `om-auto-review-pr`'s autofix loop after a session forensic showed autofix commits were bypassing the gate. See `docs/specs/2026-05-06-test-coverage-at-commit.md` for the spec.
 
 ## Contributing
 

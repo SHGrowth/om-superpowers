@@ -7,8 +7,11 @@
 #   2. packages/create-app/agentic/shared/ai/skills/ — app-building skills only in create-app
 #
 # Synced skills keep the om- prefix for plugin namespacing but their content comes from upstream.
-# om-superpowers unique skills (om-cto, om-product-manager, om-ux, om-user-proxy, om-toolkit-review)
-# are NOT synced — they are maintained in this repo.
+# om-superpowers unique skills (om-cto, om-product-manager, om-ux, om-user-proxy,
+# om-toolkit-review, om-auto-create-pr, om-auto-continue-pr, om-auto-review-pr)
+# are NOT synced — they are maintained in this repo. The auto-* trio forked from
+# upstream across v1.10.0 (auto-create-pr / auto-continue-pr — tests-with-code
+# gate at step 6 / step 4) and v1.11.2 (auto-review-pr — same gate in autofix loop).
 
 set -euo pipefail
 
@@ -164,9 +167,19 @@ CORE_SKILL_PAIRS=(
   "om-integration-builder:integration-builder"
   "om-integration-tests:integration-tests"
   # Auto-* skills (execution engine)
-  "om-auto-create-pr:auto-create-pr"
-  "om-auto-continue-pr:auto-continue-pr"
-  "om-auto-review-pr:auto-review-pr"
+  # NOTE: All three auto-* skills are now CUSTOM in this repo and are NOT
+  # synced from upstream. Forking timeline:
+  # - om-auto-create-pr / om-auto-continue-pr: forked in v1.10.0 to add the
+  #   tests-with-code gate at step 6 / step 4. (v1.10.0's CHANGELOG claimed
+  #   this removal happened but the commit shipped without it; v1.11.2
+  #   corrects that oversight retroactively.)
+  # - om-auto-review-pr: forked in v1.11.2 to add the same gate to its
+  #   autofix loop, after a patryk-standalone session committed a code-bearing
+  #   autofix without tests and the gate didn't fire (the gate lives inside
+  #   each skill's SKILL.md, not in a shared layer, so each entry point needs
+  #   its own copy).
+  # Upstream changes to any of the three must be reviewed and merged manually
+  # so the gate edits are preserved.
 )
 
 for pair in "${CORE_SKILL_PAIRS[@]}"; do

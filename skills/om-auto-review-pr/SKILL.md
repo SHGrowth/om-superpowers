@@ -466,6 +466,26 @@ Conflict-resolution rules for autofix mode:
 
 For autofix mode, the goal is not "submit one fix commit". The goal is "finish the PR". Keep iterating until the code review is clean and validation passes, unless a real blocker stops progress.
 
+#### Tests-with-code gate (mandatory before every autofix commit)
+
+Before any `git commit` in this skill — including autofix fix commits, conflict-resolution commits, and follow-up commits in §10a / §10b — run this mechanical check on the staged index. Same shape as `om-auto-create-pr` step 6 and `om-auto-continue-pr` step 4:
+
+```bash
+STAGED=$(git diff --cached --name-only)
+CODE=$(echo "$STAGED" | grep -E '\.(ts|tsx|js|jsx|mjs|cjs)$' | grep -v -E '(__tests__|\.test\.|\.spec\.)' || true)
+TESTS=$(echo "$STAGED" | grep -E '(__tests__|\.test\.|\.spec\.)' || true)
+if [ -n "$CODE" ] && [ -z "$TESTS" ]; then
+  echo "BLOCK: code change without tests in the same commit:"
+  echo "$CODE"
+  echo "Add or update tests in this commit, or split the staged set so test-bearing changes land separately."
+  exit 1
+fi
+```
+
+Rationale and exemptions documented in `docs/specs/2026-05-06-test-coverage-at-commit.md`. Single mechanical check — no retry counter, no Gate log, no `needs-human` label. If the check fails, fix the staged set (add tests, or split) and re-run.
+
+This gate exists in autofix because autofix commits ARE code-bearing — when you land a fix that touches `*.ts` source files, the autofix loop's "step 0 unit test audit" requires test coverage anyway. The gate enforces that requirement at commit time rather than relying on the audit being honored.
+
 #### 10a. Same-repo PRs
 
 If the PR head branch is in the main repository and you have push access, implement the fixes on the checked-out PR branch, resolve any base-branch conflicts there if needed, run the autofix loop above, then commit and push to that branch only after the latest re-review is approvable.
@@ -577,6 +597,7 @@ If a critical blocker remains that requires human judgment, the summary must des
 - In autofix mode, always rerun code review after each fix batch instead of assuming the previous findings list is complete
 - In autofix mode, always run unit tests and typecheck for the changed scope on every iteration and again on the final branch state
 - In autofix mode, continue iterating until the PR is ready or a real blocker is reported explicitly
+- Before every `git commit` in this skill (autofix or otherwise), run the tests-with-code gate on the staged index per the block in §10. Code without tests in the same commit blocks the commit. Mirrors the gate in `om-auto-create-pr` step 6 and `om-auto-continue-pr` step 4.
 - Must run the full CI/CD verification gate from the `code-review` skill
 - Must use the `code-review` skill severity model
 - Must run the diff-level automated checks in step 5

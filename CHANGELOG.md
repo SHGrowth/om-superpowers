@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.11.2
+
+### Fixed
+
+- **`om-auto-review-pr` autofix commits now run the tests-with-code gate.** The gate was added to `om-auto-create-pr` step 6 and `om-auto-continue-pr` step 4 in v1.10.0 but NOT to `om-auto-review-pr`'s autofix loop. Forensic check of a recent session (patryk-standalone, PR #4 autofix pass) showed an autofix commit titled `fix(prm): tenant-scope all WIC query paths + migrate to findWithDecryption` landed code-bearing changes without test files in the same commit, and the gate signature `git diff --cached --name-only` never appeared. The gate is now in `om-auto-review-pr` §10 as a "Tests-with-code gate (mandatory before every autofix commit)" sub-section, with the same shell block and same exemptions as the other two auto-* skills, plus a new entry in the Rules list.
+- **`scripts/sync-om-skills.sh` retroactively corrected.** v1.10.0's CHANGELOG claimed `om-auto-create-pr` and `om-auto-continue-pr` were removed from `CORE_SKILL_PAIRS`, but the actual v1.10.0 commit (`5135095`) shipped without that file change. Both skills have been at risk of CI sync overwrite since v1.10.0 — every daily sync run could have wiped the gate edits. v1.11.2 removes all three auto-* skills (including the newly-forked auto-review-pr) from `CORE_SKILL_PAIRS` and updates the header comment to reflect the actual fork timeline.
+- **`README.md` Custom vs Synced table** was also stale relative to v1.10.0's claims. Now correctly lists all three auto-* skills as Custom and explains the fork timeline.
+
+### Why this gap existed
+
+The tests-with-code gate is a per-skill copy, not a shared layer. v1.10.0's spec was scoped to "skills produced by `om-auto-create-pr` and resumed by `om-auto-continue-pr`" — `om-auto-review-pr`'s autofix loop is a third entry point that also produces commits, and v1.10.0's spec didn't enumerate it. The forensic on PR #4's autofix surfaced this as a real coverage hole, not a hypothetical one.
+
+This is a coverage-completeness fix, not a new feature. Same gate, same shell block, third invocation site.
+
+### Files touched
+
+- `skills/om-auto-review-pr/SKILL.md` — added a "Tests-with-code gate (mandatory before every autofix commit)" sub-section in §10 (the autofix loop) plus one new entry in the §Rules section.
+- `scripts/sync-om-skills.sh` — removed all three auto-* skills from `CORE_SKILL_PAIRS`, corrected header comment to reflect actual fork timeline.
+- `README.md` — Custom vs Synced table now lists all three auto-* skills as Custom; added paragraph explaining the fork timeline (v1.10.0 + v1.11.2).
+- `.claude-plugin/plugin.json` + `.claude-plugin/marketplace.json` — version 1.11.2.
+- `CHANGELOG.md` — this entry.
+
+### Honest note
+
+Two of the three changes in this release (sync-script removal, README table) are corrections of oversights from v1.10.0, not new work. v1.10.0's CHANGELOG documented these as "landed" when they had not actually been committed. Caught only because v1.11.2 was investigating a related issue (the auto-review-pr gap). Lesson saved to memory: verify CHANGELOG claims against the actual diff before tagging.
+
 ## 1.11.1
 
 ### Documentation
