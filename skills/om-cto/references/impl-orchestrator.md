@@ -96,6 +96,15 @@ When dispatching the base `implement-spec` skill from this orchestrator, pass th
 - **Subagent mode:** Technical decisions are in the spec's `## Technical Approach` section. Do NOT ask Extension Mode Decision — Piotr already decided.
 - **Proxy gate:** For standalone extension-vs-core decisions, invoke `om-user-proxy` before asking the user.
 
+## Autonomous loop policy
+
+Implementation runs **in this conversation, chained**. If the user asks for unattended/Ralph-style execution, use one of:
+
+- `/loop 5m /auto-continue-pr <PR#>` — harness cron mode, fresh context per turn, 5-minute interval. The right tool for unattended Ralph runs.
+- A single long Task agent (e.g., `om-auto-create-pr` / `om-auto-continue-pr`) that runs the run-plan checklist end-to-end without exiting between iterations.
+
+**Never** use `/loop` *self-paced* (no interval) for chained autonomous coding. Self-pace makes the agent call `ScheduleWakeup` between iterations, whose documented default for idle ticks is **1200–1800 s**. With queued work this inserts a 20–30 min do-nothing gap per commit and the agent will invent a cache-warmth rationale that contradicts the 5-min cache TTL. Self-pace is calibrated for *polling external signals* (a build, a PR queue), not for chained spec implementation. See `docs/specs/2026-05-07-autonomous-loop-policy.md` for the patryk forensic that drove this rule.
+
 ## Dispatch Context: Code Review
 
 When dispatching the base `code-review` skill from this orchestrator, pass this context:

@@ -1,5 +1,40 @@
 # Changelog
 
+## 1.11.5
+
+### Added — autonomous loop policy
+
+**Triggered by patryk-standalone forensic.** A long-running orchestrated session (Spec #5: RFP broadcast/response, branch `feat/prm-spec-05-rfp-broadcast-response`) was told mid-run to "do that in our ralph loop approach" and invoked the harness `/loop` skill *self-paced* (no interval). That mode wires the agent to call `ScheduleWakeup` between iterations, whose tool-description default for "idle ticks" is 1200–1800 s. The agent dutifully picked 1200 s, then 1500 s, while a run plan with C1.10/C2.x/C3a–d/C4/C5 unchecked sat right next to it. Each "tick" inserted a 20–30 min do-nothing gap per commit, and at iteration 4 the agent wrote a `ScheduleWakeup` reason — *"cache-friendly idle window keeps prompt cache warm across iterations"* — that contradicts the tool's own first sentence (cache TTL is 300 s, not 1500 s).
+
+The `/loop` skill is harness-owned and we can't patch its tooltip. What om-superpowers controls is the dispatch context — what an agent reads when entering autonomous Ralph mode via `om-cto` / `om-implement-spec` / `om-auto-continue-pr`. Before this release, those skills were silent on `/loop` mode selection; the agent had no policy to anchor against. v1.11.5 closes that gap with a three-layer doc-only policy. No enforcement hook (rejected — false-positive risk on legitimate polling-mode wake-ups). See `docs/specs/2026-05-07-autonomous-loop-policy.md` for the full forensic and rationale.
+
+#### Layer 1 — `README.md` "Autonomous Ralph-style runs" anti-pattern callout
+
+Adds an explicit **do NOT use `/loop` self-paced for chained autonomous coding** callout under the existing v1.11.0 cron-mode example. Names the two correct patterns: `/loop 5m /auto-continue-pr <PR#>` (cron mode, fresh context per turn) or a single long conversation that chains checklist items without sleeping. Calls out the cache-TTL contradiction so users who get burned by it again can recognize the failure mode.
+
+#### Layer 2 — `skills/om-cto/references/impl-orchestrator.md` § Autonomous loop policy
+
+Adds a three-paragraph subsection right after "Dispatch Context: Implementation." Says implementation runs in this conversation, chained; for unattended runs, use cron-mode `/loop` or a single long Task agent. Explicitly forbids `/loop` self-paced for chained autonomous coding and explains why (idle-tick default doesn't fit queued work). Cites the patryk forensic.
+
+#### Layer 3 — `om-implement-spec` and `om-auto-continue-pr` Rules one-liner
+
+Each skill's Rules section now includes: *"MUST NOT call `ScheduleWakeup` between phases / iterations / checklist items. … delay >270 s while a run-plan checklist has unchecked items is an anti-pattern."* Cross-references the orchestrator policy. Catches the case where the agent never reads the orchestrator reference but does reach the SKILL.md Rules block.
+
+### Files touched
+
+- `README.md` — added v1.11.5 anti-pattern callout under "Autonomous Ralph-style runs."
+- `skills/om-cto/references/impl-orchestrator.md` — new "Autonomous loop policy" subsection after "Dispatch Context: Implementation."
+- `skills/om-implement-spec/SKILL.md` — appended `ScheduleWakeup` rule to Rules section.
+- `skills/om-auto-continue-pr/SKILL.md` — appended `ScheduleWakeup` rule to Rules section.
+- `docs/specs/2026-05-07-autonomous-loop-policy.md` — new forensic + spec.
+- `.claude-plugin/plugin.json` + `.claude-plugin/marketplace.json` — version 1.11.5.
+- `CHANGELOG.md` — this entry.
+
+### Process notes (lessons)
+
+- The `/loop` skill is shipped by the harness, not by om-superpowers. We can't patch its tooltip default of 1200–1800 s. Anchoring policy in our own dispatch contexts and skill Rules is the only lever we have when the agent reaches for the wrong harness mode.
+- Saved as a feedback memory: `/loop` self-pace is for polling external signals; for chained autonomous coding, use cron mode (`/loop 5m …`) or a single long conversation. Future sessions in om-superpowers context shouldn't re-derive this from scratch.
+
 ## 1.11.4
 
 ### Documentation

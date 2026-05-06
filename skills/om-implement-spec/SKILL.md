@@ -215,3 +215,4 @@ When implementing component replacement features (as in SPEC-041h pattern):
 - MUST follow backward compatibility rules — no breaking changes without deprecation protocol
 - MUST keep subagents focused — one task per subagent, clear boundaries
 - MUST report blockers to the user immediately rather than working around them silently
+- MUST NOT call `ScheduleWakeup` between phases or iterations. Implementation chains in this conversation; if the user asks for unattended Ralph-style execution, hand off to `/loop 5m /auto-continue-pr <PR#>` (harness cron mode) instead. `ScheduleWakeup` with delay >270 s while a run-plan checklist has unchecked items is an anti-pattern — it inserts a 20–30 min do-nothing gap per commit. See `skills/om-cto/references/impl-orchestrator.md` § Autonomous loop policy.

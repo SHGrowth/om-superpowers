@@ -181,6 +181,8 @@ For unattended end-to-end execution against an in-progress PR, use Claude Code's
 
 Each iteration starts cold (clean context). The v1.11.0 SessionStart hook detects the in-progress plan and routes to `om-auto-continue-pr`, which runs the tests-with-code gate per atomic commit. The loop exits when you stop it or when the plan has no unchecked steps left and the PR flips to `complete`. Mirrors the [Ralph pattern](https://github.com/snarktank/ralph) without shelling out to fresh `claude -p` processes — the harness handles iteration. For one-off scheduled runs, use `/schedule` instead.
 
+> **As of v1.11.5**, do **NOT** use `/loop` *self-paced* (no interval) for chained autonomous coding. Self-pace mode wires the agent to call `ScheduleWakeup`, whose tooltip default for "idle ticks" is **1200–1800 s** (20–30 min). With an unchecked run-plan checklist there is nothing to wait for, so each "tick" inserts a multi-minute do-nothing gap between commits, and the agent will fabricate a cache-warmth rationale that contradicts the 5-min cache TTL. The two correct patterns are: **(a)** `/loop 5m /auto-continue-pr <PR#>` (cron mode, fixed interval, fresh context per turn) for unattended runs, or **(b)** a single long conversation that chains checklist items without sleeping. Triggered by patryk-standalone session forensic 2026-05-07 — see [`docs/specs/2026-05-07-autonomous-loop-policy.md`](docs/specs/2026-05-07-autonomous-loop-policy.md).
+
 ### Meta
 
 | Skill | When to use |
