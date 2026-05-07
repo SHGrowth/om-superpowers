@@ -156,25 +156,39 @@ When coding agent's post-e2e tick sees `status:e2e-passed`, it transitions to `s
 
 This step uses v1.11.6's mandate — no separate review agent process needed; the coding agent invokes the review skill at the right state.
 
+## Communication style — lean, plain English
+
+**All GitHub surfaces (issue titles/bodies, PR titles/bodies, all comments) MUST default to simple non-technical language.** Technical detail belongs in the repo — run plans (`.ai/runs/`), spec files (`.ai/specs/`), commit messages, code. Not in GitHub conversation.
+
+Rules:
+- Plain English, short sentences. *"Tests passed. Ready for review."* not stat tables.
+- Reference repo paths, don't restate contents. *"See run plan in `.ai/runs/<file>.md`"*, then stop.
+- Reference commits by purpose, not by SHA dumps. *"Decline flow done."*
+- When tech IS needed (specific bug, security finding), keep it short and lean — point to where the full detail lives in the repo, then stop.
+
+The line: if a teammate skimming the PR for 30 seconds needs the info to decide "is this safe," put it in the PR. Otherwise it's repo content.
+
+This rule applies to every agent contract in this design and retroactively to existing skills that violate it (see v1.11.7 patch list in cross-link section).
+
 ## Handoff comment shape
 
-Every state transition that hands work to a different agent posts a structured PR comment (also mirrored on the issue). One blob, parseable, collapsible.
+Every state transition that hands work to a different agent posts a short PR comment (also mirrored on the issue) using the lean style above.
+
+Example (coding → e2e):
 
 ```markdown
-🤖 Handoff — coding → e2e (issue #42, PR #87)
+🤖 Handing off to e2e
 
-**Last commit:** abc1234 — "feat(prm): T6 scoring widget complete"
-**Branch:** feat/prm-spec-06-scoring
-**Files in flight:** None (all staged, pushed)
-**Expected outcome:** §9.1 #1–#3 should pass; §9.4 #20 may fail (decline edge case)
-**Resume instructions:**
-- On status:e2e-passed → run `om-auto-review-pr 87` and apply autofix
-- On status:e2e-failed with §9.4 #20 → check `RfpDeclineService.unsubmit` guard
+Branch ready. Run plan: `.ai/runs/2026-05-07-prm-spec-06-scoring.md`.
 
-🤖 End handoff
+Expected: most tests pass. One decline case may fail; details in run plan.
+
+On pass → review. On fail → fix and re-queue.
 ```
 
-The next agent reads the most recent `🤖 Handoff` comment to pick up. Same shape that `om-auto-continue-pr` already uses for human-driven resume.
+That's it. No stat tables, no §-citations, no internal skill names, no SHA dumps. The next agent reads the comment for *intent*, then opens the run plan for *detail*.
+
+The same shape replaces the verbose summary templates currently used by `om-auto-create-pr` and `om-auto-continue-pr`. v1.11.7 codifies the rule across those skills before this design ships.
 
 ## Spawning — no cmux required
 
@@ -258,5 +272,6 @@ Each phase ships as its own version (v1.12.0, v1.13.0, v1.14.0).
 - v1.11.5 (`/loop` self-pace anti-pattern) — fixed *symptom* (agents sleeping); this design fixes *cause* (no peer to yield to).
 - v1.11.6 (post-PR review gate) — fixed *symptom* (review skipped); this design integrates review as a peer agent in the state machine.
 - v1.11.3 (duplicate-work prevention) — labels protocol here generalizes the existing `in-progress` lock used by `auto-create-pr` / `auto-continue-pr`.
+- **v1.11.7 (planned, prerequisite for this design)** — codifies the lean GitHub communication style across `om-auto-create-pr`, `om-auto-continue-pr`, `om-auto-review-pr`, `om-implement-spec`. Replaces existing verbose "comprehensive summary" templates with the short-form shape documented here. Must ship before any phase of this design — otherwise the new agents inherit the verbose pattern.
 
 If a v1.11.7 emerges from PRM Spec #6 + #7 implementation pain, that's signal Phase 2 should be brought forward. If sequential Specs #6 + #7 ship cleanly under v1.11.6, this design can wait until the next greenfield app where parallelism's payoff is bigger.
