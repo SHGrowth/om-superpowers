@@ -1,0 +1,67 @@
+{
+  "upstream": {
+    "repo": "open-mercato/open-mercato",
+    "branch": "develop"
+  },
+  "mirror": [
+    {
+      "src": ".ai/ds-rules.md",
+      "dest": "om-reference/.ai/ds-rules.md",
+      "purpose": "Canonical DS foundation rules (tokens, decision tree, brand colors)"
+    },
+    {
+      "src": ".ai/ui-components.md",
+      "dest": "om-reference/.ai/ui-components.md",
+      "purpose": "Per-primitive variant tables, props, MUST rules"
+    }
+  ],
+  "extract": [
+    {
+      "type": "specialized-inputs",
+      "srcDir": "packages/ui/src/backend/inputs",
+      "extensions": [".tsx"],
+      "destFile": "skills/om-ds-guardian/references/specialized-inputs.md",
+      "trackingIssue": "open-mercato/open-mercato#1874",
+      "rationale": "Upstream .ai/ui-components.md does not yet document specialized backend inputs (per .ai/design-system-audit-2026-04-10.md). Until upstream lands a Specialized Inputs section, source-extract from packages/ui/src/backend/inputs/*.tsx is the bridge."
+    }
+  ],
+  "discovery": [
+    {
+      "path": ".ai",
+      "extensions": [".md"],
+      "purpose": "Top-level canonical doc — surface if a new .ai/*.md appears"
+    },
+    {
+      "path": "packages/ui/src/backend/inputs",
+      "extensions": [".tsx"],
+      "purpose": "Specialized input primitive — feeds Tier 2 extract"
+    },
+    {
+      "path": "packages/ui/src/backend",
+      "extensions": [".md"],
+      "purpose": "Backend UI AGENTS / docs"
+    }
+  ],
+  "smokeTests": [
+    {
+      "name": "ds-rules.md has Colors section",
+      "file": "om-reference/.ai/ds-rules.md",
+      "mustMatch": "## Colors"
+    },
+    {
+      "name": "ds-rules.md has Brand Colors section",
+      "file": "om-reference/.ai/ds-rules.md",
+      "mustMatch": "## Brand Colors"
+    },
+    {
+      "name": "ui-components.md has Button section",
+      "file": "om-reference/.ai/ui-components.md",
+      "mustMatch": "## Button"
+    },
+    {
+      "name": "specialized-inputs.md has TagsInput section",
+      "file": "skills/om-ds-guardian/references/specialized-inputs.md",
+      "mustMatch": "### TagsInput"
+    }
+  ]
+}

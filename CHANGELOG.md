@@ -1,5 +1,56 @@
 # Changelog
 
+## 1.13.0
+
+### Added — DS Guardian sync infrastructure (`scripts/sync/ds.mjs`)
+
+`om-ds-guardian` references are now kept in sync with upstream OM canonical DS docs via a manual sync script. Run `node scripts/sync/ds.mjs` from the plugin root to:
+
+- **Mirror** `.ai/ds-rules.md` and `.ai/ui-components.md` from upstream `open-mercato/open-mercato@develop` into `om-reference/.ai/`. Two upstream files, both authoritative for tokens and primitive contracts; on conflict with hand-curated content, upstream wins.
+- **Source-extract** 11 specialized inputs (ComboboxInput, DatePicker, DateTimePicker, EventPatternInput, EventSelect, LookupSelect, PhoneNumberField, SwitchableMarkdownInput, TagsInput, TimeInput, TimePicker) from `packages/ui/src/backend/inputs/*.tsx` into `skills/om-ds-guardian/references/specialized-inputs.md`. The bridge exists because upstream `.ai/ui-components.md` does not yet document specialized inputs (per `.ai/design-system-audit-2026-04-10.md`'s "defer to their own sections when they land" note); upstream issue [open-mercato/open-mercato#1874](https://github.com/open-mercato/open-mercato/issues/1874) tracks the canonical doc gap.
+- **Discover** new/removed/changed upstream files in tracked directories (`.ai/`, `packages/ui/src/backend/inputs/`, `packages/ui/src/backend/`) by diffing against `skills/om-ds-guardian/.last-sync.json`. Deltas surface as action items in `sync-reports/YYYY-MM-DD-HHMM.md`.
+- **Smoke-test** mirrored content (e.g., "ds-rules.md has Colors section", "specialized-inputs.md has TagsInput section") so a malformed mirror does not silently break downstream skill rules.
+
+The script pins to a single upstream commit SHA per run (resolved at start), is idempotent (re-runs with the same SHA are no-ops), supports `--dry-run` for preview without writing, fails loudly (non-zero exit) on gh API errors / missing manifest entries / smoke test failures, and writes atomically (write-then-rename per file).
+
+**Driven by** the user's review of PRM `caseStudyForm.tsx`, where DS Guardian REVIEW gave 10/10 to `<Input value="comma,separated,slugs">` for multi-value dictionary fields. Investigation surfaced that the upstream `<TagsInput>` primitive ships in `@open-mercato/ui@0.5.0`, is documented in source, and is used in 10+ core call-sites — but our hand-curated `references/component-guide.md` had no mention of it. The drift was structural: skill references were written at one point in time and never resynced as upstream evolved. This release closes the gap and prevents the same failure mode for future primitives.
+
+#### Tier model
+
+DS Guardian now layers references in three tiers:
+
+| Tier | Source | Authority | Examples |
+|------|--------|-----------|----------|
+| **1 — Upstream-mirrored** | `open-mercato/open-mercato` canonical docs | Wins on conflict | `om-reference/.ai/ds-rules.md`, `om-reference/.ai/ui-components.md` |
+| **2 — Source-extracted bridge** | `packages/ui/src/backend/inputs/*.tsx` (TS source) | Best-effort until upstream docs catch up | `references/specialized-inputs.md` |
+| **3 — Skill-curated** | Hand-maintained in this repo | DS Guardian recipes layered on top | `references/component-guide.md`, `references/token-mapping.md`, `references/page-templates.md` |
+
+#### New `mirrors-docs` relationship in `UPSTREAM.md`
+
+Sibling to existing `extends` (upstream skill plugin), `composes` (orchestration), and `independent` (no upstream) — `mirrors-docs` is for skills that downstream-enforce upstream canonical *documentation* (not skill plugins). Pattern generalizes: future shadowing skills (om-data-model-design, om-system-extension, om-module-scaffold, om-backend-ui-design) can adopt the same shape (manifest + discovery + extract + smoke test + report) when their upstream canonical docs land. Pilot validated the shape; rolling out to other skills is staged.
+
+#### Cadence
+
+Manual trigger only — no cron. The user runs `node scripts/sync/ds.mjs` from the plugin root when they want fresh upstream content. Idempotent re-runs are cheap (no-op exit), so re-running before each release is the recommended cadence. When upstream evolves, the discovery scan flags new/removed/changed files in the report, and the human decides routing (add to manifest, ignore, escalate to a new skill, or file an upstream issue).
+
+#### Files touched
+
+- `scripts/sync/ds.mjs` (new) — single-file sync script; manifest + discovery + extract + smoke test + dry-run + atomic writes + idempotency. Uses `gh api` (already authenticated for plugin users) for upstream calls; no node deps.
+- `skills/om-ds-guardian/sync-config.json` (new) — manifest: 2 mirror paths, 1 extract group (11 inputs), 3 discovery paths, 4 smoke tests, upstream `open-mercato/open-mercato@develop`, tracking issue `#1874`.
+- `skills/om-ds-guardian/.last-sync.json` (new) — snapshot from last successful sync; fuels discovery diff for the next run.
+- `skills/om-ds-guardian/sync-reports/2026-05-08-1930.md` (new) — first official sync report (Tier 1: 2 mirrors written, Tier 2: 11 primitives extracted, 0 discovery deltas, 4 smoke tests passed; pinned to upstream `b39fb4d`).
+- `skills/om-ds-guardian/references/specialized-inputs.md` (new, auto-generated) — Tier 2 bridge for the 11 specialized inputs with provenance header, decision rule table, anti-pattern callout for CSV-in-Input, and per-primitive sections (source link, import path, exported types, defaults from destructuring).
+- `om-reference/.ai/ds-rules.md` (new, mirrored) — canonical DS foundation rules (~19KB, mirrored verbatim from upstream).
+- `om-reference/.ai/ui-components.md` (new, mirrored) — canonical primitive contracts (~36KB, mirrored verbatim from upstream).
+- `skills/om-ds-guardian/SKILL.md` — added Tier 1/2/3 reference layers section + Sync section + run-this-manually command.
+- `UPSTREAM.md` — added `mirrors-docs` relationship to taxonomy; updated `om-ds-guardian` row from `independent` to `mirrors-docs` with upstream paths and pinned commit `b39fb4d`.
+- `README.md` — v1.13.0 callout under Quality & Testing skills section linking to upstream issue #1874.
+- `.claude-plugin/plugin.json` + `.claude-plugin/marketplace.json` — version 1.13.0.
+
+#### Upstream issue filed
+
+[open-mercato/open-mercato#1874](https://github.com/open-mercato/open-mercato/issues/1874) — "`.ai/ui-components.md` missing Specialized Inputs section". Asks upstream to add a "Specialized Inputs" section covering the 11 primitives with decision rule + props summary + anti-pattern callouts. When that lands, our Tier 2 extract becomes redundant — sync's discovery scan will flag the new upstream section and we can collapse Tier 2 into Tier 1 mirror.
+
 ## 1.12.1
 
 ### Added — upstream-bug-triage discipline

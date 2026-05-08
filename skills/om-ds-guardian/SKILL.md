@@ -357,15 +357,43 @@ For the full migration workflow, ALWAYS:
 
 ## Reference Files
 
-These references are the source of truth for DS-compliant code. They are consumed by `om-module-scaffold` and `om-implement-spec` at scaffold time, and by `om-auto-review-pr` (via REVIEW) at PR time.
+DS Guardian draws from two layers of references:
 
-- `references/token-mapping.md` — Color and typography mapping tables (the source of truth for find→replace)
-- `references/component-guide.md` — When to use which component, API quick reference, MUST rules per primitive. **Required reading for any skill that generates UI code.**
+### Tier 1 — Upstream-mirrored canonical docs (authoritative for tokens + primitives)
+
+Synced from `open-mercato/open-mercato` by `scripts/sync/ds.mjs` (manual trigger). These are the upstream source of truth — when they conflict with hand-curated content here, **they win**. Provenance + last-synced commit live in `.last-sync.json` next to this skill.
+
+- `om-reference/.ai/ds-rules.md` — Foundation rules: color decision tree, semantic token contract, brand colors, typography scale, spacing, shadows, motion. Mirrored from upstream `.ai/ds-rules.md`.
+- `om-reference/.ai/ui-components.md` — Per-primitive variant tables, sizes, props, MUST rules for Button, IconButton, Input, Textarea, Select, Switch, Radio, Checkbox, Tooltip, Avatar, Kbd, Tag, etc. Mirrored from upstream `.ai/ui-components.md`.
+- `om-reference/packages/ui/AGENTS.md` — Component-level usage patterns (CrudForm, DataTable, Flash, Portal, Avatar, Kbd, Tag, Menu Injection). Mirrored by `scripts/sync-om-skills.sh`.
+
+### Tier 2 — Source-extracted bridge (upstream docs gap)
+
+- `references/specialized-inputs.md` — Auto-generated from `packages/ui/src/backend/inputs/*.tsx`. Covers ComboboxInput, DatePicker, DateTimePicker, EventPatternInput, EventSelect, LookupSelect, PhoneNumberField, SwitchableMarkdownInput, **TagsInput**, TimeInput, TimePicker. Upstream `.ai/ui-components.md` does not yet document these (per `om-reference/.ai/design-system-audit-2026-04-10.md`); this file is the bridge until upstream lands a Specialized Inputs section. **Do not edit by hand — rerun `node scripts/sync/ds.mjs` to regenerate.**
+
+### Tier 3 — Skill-curated (DS Guardian recipes layered on top)
+
+- `references/token-mapping.md` — Find→replace tables for color and typography migrations. Layers concrete migration recipes on top of Tier 1 token rules.
+- `references/component-guide.md` — Decision tables and "when to use which" guidance with API quick references. Layers DS Guardian's choosing logic on top of Tier 1 component contracts.
 - `references/page-templates.md` — DS-compliant List/Create/Detail page templates. **Required reading for `om-module-scaffold` and `om-implement-spec` when emitting backend pages.**
 - `scripts/ds-health-check.sh` — Repo-wide DS health snapshot with delta tracking. Used by Capability 5 (REPORT) and at session start. Saves dated reports to `.ai/reports/`.
 - `scripts/ds-diff-check.sh` — Per-file deterministic linter for a list of changed files. Output format: `<file>:<line>:<rule-id>:<match>`. Used by `om-auto-review-pr` step 6a as the grep-first phase before LLM REVIEW. Pattern set is kept in sync with `ds-health-check.sh`.
 - `scripts/ds-migrate-colors.sh` — Color migration codemod
 - `scripts/ds-migrate-typography.sh` — Typography migration codemod
+
+## Sync — keeping references in sync with upstream
+
+Run from plugin root (`om-superpowers/`):
+
+```bash
+node scripts/sync/ds.mjs              # apply: pulls Tier 1 + regenerates Tier 2 + writes report
+node scripts/sync/ds.mjs --dry-run    # preview only — no files written
+node scripts/sync/ds.mjs --branch main  # override upstream branch (default: develop)
+```
+
+The script pins to a single upstream commit SHA per run, mirrors the configured paths, source-extracts specialized inputs, runs discovery against `.last-sync.json` for new/removed/changed upstream files, runs smoke tests against the mirrored content, and writes a change report to `sync-reports/YYYY-MM-DD-HHMM.md`. Idempotent — re-running with the same SHA is a no-op. Loud failures (non-zero exit) on gh API errors, missing manifest entries, or smoke test failures.
+
+When discovery shows new files (e.g., upstream ships `ColorPicker.tsx` in `packages/ui/src/backend/inputs/`), the report surfaces them as action items — decide whether to add to mirror, ignore, or escalate to a new skill. Routing is always human; the script does not auto-add to manifest.
 
 ## Origin
 

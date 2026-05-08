@@ -8,6 +8,7 @@ Used to detect drift when an upstream plugin (most often [obra/superpowers](http
 
 - **extends** — om skill uses the upstream discipline as its foundation, then adds an OM-specific layer (personas, spec format, OM rules, OM checklists). Upstream changes to the underlying discipline should be absorbed; upstream changes to prompts/examples usually shouldn't.
 - **composes** — om skill orchestrates one or more upstream skills as steps in a larger OM-specific flow. Upstream changes propagate automatically *unless* the orchestration has inlined upstream logic.
+- **mirrors-docs** — om skill is the downstream enforcer for upstream canonical *documentation* (not skill plugins). A per-skill sync script (e.g., `scripts/sync/ds.mjs`) pulls authoritative docs from upstream into `om-reference/` and may source-extract structured data (TypeScript types, JSDoc) into `skills/<name>/references/`. Drift = 0 by construction when sync is fresh; the skill layers ANALYZE/REVIEW/MIGRATE recipes on top.
 - **independent** — no upstream counterpart. Upstream changes are irrelevant.
 
 ## Registry
@@ -33,7 +34,7 @@ Upstream pin format: `<plugin>@<version>`. `n/a` means the upstream plugin doesn
 | om-module-scaffold | independent | — | — | OM module bootstrap | — |
 | om-integration-builder | independent | — | — | OM provider package format | — |
 | om-integration-tests | independent | — | — | OM Playwright suite | — |
-| om-ds-guardian | independent | — | — | OM design system rules | — |
+| om-ds-guardian | mirrors-docs | open-mercato:.ai/ds-rules.md + .ai/ui-components.md (+ source-extract from packages/ui/src/backend/inputs/) | DS foundation tokens, primitive contracts (mirrored to `om-reference/.ai/`), specialized input surface (source-extracted to `references/specialized-inputs.md`) | ANALYZE/PLAN/MIGRATE/REVIEW/REPORT capabilities, enforcement scripts, decision tables, skill-curated migration recipes | open-mercato@b39fb4d |
 
 ## Demoted skills (synced as references under a parent)
 

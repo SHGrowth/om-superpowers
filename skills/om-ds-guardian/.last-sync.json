@@ -1,0 +1,151 @@
+{
+  "schemaVersion": 1,
+  "repo": "open-mercato/open-mercato",
+  "branch": "develop",
+  "sha": "b39fb4dfa64ced63d78aa3aa9e17f572eb9a8137",
+  "completedAt": "2026-05-08T19:30:36.849Z",
+  "mirror": [
+    {
+      "src": ".ai/ds-rules.md",
+      "dest": "om-reference/.ai/ds-rules.md",
+      "hash": "92fc85049fb78fa8f62f743eecfca62b3baa3ca8921d5102beec99cb2f5ac362"
+    },
+    {
+      "src": ".ai/ui-components.md",
+      "dest": "om-reference/.ai/ui-components.md",
+      "hash": "ce41baaddbae8d92d6fe1e793a36c2c815574fbdcc7ec12745d81850c95d645d"
+    }
+  ],
+  "extract": [
+    {
+      "destFile": "skills/om-ds-guardian/references/specialized-inputs.md",
+      "sourceNames": [
+        "ComboboxInput",
+        "DatePicker",
+        "DateTimePicker",
+        "EventPatternInput",
+        "EventSelect",
+        "LookupSelect",
+        "PhoneNumberField",
+        "SwitchableMarkdownInput",
+        "TagsInput",
+        "TimeInput",
+        "TimePicker"
+      ],
+      "hash": "5a359039b9e38802cad59a8a0e0a77e1f31d6c06bf5b7dd55dbc97b7f0935b38"
+    }
+  ],
+  "discovery": [
+    {
+      "path": ".ai",
+      "files": [
+        {
+          "name": "design-system-audit-2026-04-10.md",
+          "sha": "99aef5c225c4f10061399ed65fce9031bf5de9c7",
+          "size": 275428,
+          "hash": "99aef5c225c4f10061399ed65fce9031bf5de9c7"
+        },
+        {
+          "name": "ds-rules.md",
+          "sha": "2a84d232aa3154a01f73297c430ea7bbc99d03d4",
+          "size": 19076,
+          "hash": "2a84d232aa3154a01f73297c430ea7bbc99d03d4"
+        },
+        {
+          "name": "lessons.md",
+          "sha": "3940246aca0c7c799602b062deba4663fab5a413",
+          "size": 79669,
+          "hash": "3940246aca0c7c799602b062deba4663fab5a413"
+        },
+        {
+          "name": "ui-components.md",
+          "sha": "4e5566b1635809208aab55dc7a8c909409da9e23",
+          "size": 36135,
+          "hash": "4e5566b1635809208aab55dc7a8c909409da9e23"
+        }
+      ]
+    },
+    {
+      "path": "packages/ui/src/backend/inputs",
+      "files": [
+        {
+          "name": "ComboboxInput.tsx",
+          "sha": "d3a9c10902314386102e13bbeaa6b3956fa208d9",
+          "size": 9080,
+          "hash": "d3a9c10902314386102e13bbeaa6b3956fa208d9"
+        },
+        {
+          "name": "DatePicker.tsx",
+          "sha": "ca58a30b0efdf37eca00386a085fd8e736a7060b",
+          "size": 5039,
+          "hash": "ca58a30b0efdf37eca00386a085fd8e736a7060b"
+        },
+        {
+          "name": "DateTimePicker.tsx",
+          "sha": "a324f79b6cf5482a2a20c5c22d86239bbdf1aab6",
+          "size": 6429,
+          "hash": "a324f79b6cf5482a2a20c5c22d86239bbdf1aab6"
+        },
+        {
+          "name": "EventPatternInput.tsx",
+          "sha": "6a7622a973c98f7a38b56805ad30290b5d14e3ee",
+          "size": 1041,
+          "hash": "6a7622a973c98f7a38b56805ad30290b5d14e3ee"
+        },
+        {
+          "name": "EventSelect.tsx",
+          "sha": "4fe9aa8924f9fd98b3511cf2927c204c33193fa8",
+          "size": 5598,
+          "hash": "4fe9aa8924f9fd98b3511cf2927c204c33193fa8"
+        },
+        {
+          "name": "LookupSelect.tsx",
+          "sha": "01ac42fdcd54ba0cb2445ce773942100d0d0e3be",
+          "size": 9015,
+          "hash": "01ac42fdcd54ba0cb2445ce773942100d0d0e3be"
+        },
+        {
+          "name": "PhoneNumberField.tsx",
+          "sha": "17b4b1df7769e2089606e709e4152ebe351760c7",
+          "size": 5418,
+          "hash": "17b4b1df7769e2089606e709e4152ebe351760c7"
+        },
+        {
+          "name": "SwitchableMarkdownInput.tsx",
+          "sha": "9438769557e0035d63e996c01ef43cddd8f0a553",
+          "size": 3337,
+          "hash": "9438769557e0035d63e996c01ef43cddd8f0a553"
+        },
+        {
+          "name": "TagsInput.tsx",
+          "sha": "f47fa93319d53b98310660f05a402556b997b050",
+          "size": 9445,
+          "hash": "f47fa93319d53b98310660f05a402556b997b050"
+        },
+        {
+          "name": "TimeInput.tsx",
+          "sha": "33c4d7554a051ebafad365235837d7527efd6a3b",
+          "size": 4172,
+          "hash": "33c4d7554a051ebafad365235837d7527efd6a3b"
+        },
+        {
+          "name": "TimePicker.tsx",
+          "sha": "dcbef4a2f737456bd292010455d5f01d68f210a0",
+          "size": 3714,
+          "hash": "dcbef4a2f737456bd292010455d5f01d68f210a0"
+        }
+      ]
+    },
+    {
+      "path": "packages/ui/src/backend",
+      "files": [
+        {
+          "name": "AGENTS.md",
+          "sha": "e5b6b7f54601b6affbc47fc0f1e699b4ff0d6cbc",
+          "size": 5814,
+          "hash": "e5b6b7f54601b6affbc47fc0f1e699b4ff0d6cbc"
+        }
+      ]
+    }
+  ]
+}
