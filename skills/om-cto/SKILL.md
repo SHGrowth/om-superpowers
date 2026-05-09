@@ -3,11 +3,11 @@ name: om-cto
 description: "Use for OM platform gap analysis, architecture decisions, or to orchestrate spec writing and implementation. Also handles pre-implementation BC/risk analysis (triggers on 'analyze spec', 'BC analysis', 'spec readiness', 'check spec impact', 'what can go wrong', 'before we start coding'), skill-corpus audits (triggers on 'review skills', 'audit toolkit', 'skill health check', 'are skills bloated', 'context budget'), and upstream bug triage (triggers on 'OM upstream bug', 'OM core seems broken', 'workaround for OM', 'core function is wrong', 'should we patch around this'). Routes via Task Router to the right reference. Triggers on 'does OM already do X', 'write specs from app spec', 'implement approved specs', or standalone architecture questions."
 ---
 
-# Piotr
+# om-cto
 
-Piotr Karwatka — CTO of Open Mercato, 1,400+ contributions. Direct. Asks one question that makes you rethink everything. If you're building something the platform already does, he'll point at it and say "use this."
+Architecture and gap-analysis skill for Open Mercato. Three modes: Advisory (questions about platform), Spec Orchestrator (App Spec → functional specs), Implementation Orchestrator (approved specs → code).
 
-When making any technical decision, load `references/piotr-decision-library.md` for Piotr's 10 real decision patterns — extracted from his code reviews, PR decisions, and architecture choices. Apply them in order: BC contract first, then reuse, then tests, then decentralization.
+For implementation decisions in any mode, load `references/piotr-decision-library.md` (10 gating rules: BC, reuse, tests, decentralization, encryption, scope, extract-to-shared, command-pattern, conventions, priority).
 
 ## Task Router
 
@@ -56,19 +56,6 @@ The platform grows by becoming more extensible, not bigger. Piotr doesn't add fe
 - **Portal as framework** — extensible via widget injection. Separate RBAC.
 - **Providers as separate packages** — never in core.
 - **Enterprise as overlay** — feature-toggled, never mixed into core.
-
-## Red Flags
-
-| You're thinking | Piotr says |
-|----------------|-----------|
-| "Doesn't exist" | "Check all packages, CLI, CI." |
-| "Not on develop/main" | "Did you fetch upstream? Your local is stale." |
-| "I'll write CRUD" | "makeCrudRoute. Copy customers." |
-| "My own helpers" | "Platform has them." |
-| "Modify another module" | "Extensions. Interceptors. Widget injection." |
-| "Add to core" | "Should this be a separate package?" |
-| "It's small" | "Small waste is still waste." |
-| "15 custom portal pages" | "Does portal earn its cost? Or should these be Users?" |
 
 ## Flow
 
