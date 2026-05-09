@@ -1,5 +1,89 @@
 # Changelog
 
+## 1.14.0
+
+### Added — `bin/claude-validated` output validator wrapper
+
+Implements `agents-master/improvements/I018.md` — a structural validator that wraps `claude -p` (headless mode) and runs 5 deterministic regex checks against stdout. On any FAIL: rejects + retries with reinforcement (up to 2 retries). After retry budget: exits 1 with named FAIL on stderr. Silent fabrication is no longer an option for the "does platform X cover capability Y" prompt class in headless mode.
+
+**Driven by** S008 → S010 → S011 — 16 data points across 4 progressively-tightened text-channel gates (HARD-GATE prose, `## Sources` mandate from I014, Phase 6 doubt-check from I016, ROUTING CHECK addition from I017) all empirically establishing that prose rules in skill bodies do not bind `claude -p --model claude-opus-4-7` for fabrication-shape failures. Plus one deletion experiment (Replace Advisory with Research Plan) that also failed: agent read the new template four times then violated every Hard Rule. Skill text channel is dead for this prompt class. The wrapper bypasses it entirely — skill text becomes advisory; the regex is normative.
+
+#### What it catches
+
+- **#1 Percentage without N/M fraction** — `~70%` without backing fraction (`8/11 covered`) → FAIL
+- **#2 English hedges** — `approximately`, `around`, `roughly`, `~[0-9]` → FAIL
+- **#3 Persona invocation** — `Piotr`, `Cagan`, `Piotr-style`, `Cagan-style` used as authority labels → FAIL (cite rule numbers from `references/piotr-decision-library.md`, never the persona name as label)
+- **#4 Polish hedges** — `szacunkowo`, `około`, `mniej więcej`, `w przybliżeniu` (locale-restrictive: output must be English) → FAIL
+- **#5 Effort estimates without enumeration** — `6-8 modules` without per-module list → FAIL
+
+#### Locale-restrictive design
+
+The wrapper prepends a `LOCALE_RULE` requiring English output regardless of input language, so an English-only regex set suffices. Addresses S011's finding that fabrication shape transfers across languages — agent matching user's Polish prompt was the carrier wave for the fabrication. Removing the language-mirroring instinct removes one transfer surface. Cost: Polish-speaking users reading English answers about platform capabilities; acceptable given the user is the developer here, not the end customer; final user-facing answers can be re-localized as a separate step after grounding holds.
+
+#### Empirical retry trajectory (verified 2026-05-09)
+
+ISO 9001 prompt against patched wrapper (transcripts captured):
+
+- Retry 0: 3 FAILs (`#2` hedge, `#3` persona, `#5` effort estimate)
+- Retry 1: 1 FAIL (`#3` persona) — narrowed
+- Retry 2: 1 FAIL (`#5` effort regex precision); output structurally near-compliant — 10 modules enumerated explicitly with descriptions, fractions `7/7`, `10/10`, `4/4` instead of percentages, zero persona invocations
+- Exit 1 with named FAIL surfaced on stderr
+
+Retry-into-compliance empirically works; failure to PASS within retry budget on this specific prompt is due to validator `#5`'s effort-estimate regex precision (fires on `10 modules` mention even when 10 modules are explicitly enumerated). Tuning deferred until N≥3 false-fire cases accrue from real use — picked from data, not pre-commit.
+
+#### Downstream stdin-fix vs spec verbatim
+
+I018's spec used `cat` inside the retry loop, but stdin is consumed by retry 0 — retries 1+ then received only `LOCALE_RULE` without the original prompt and the model emitted orientation messages instead of retried-answer-with-reinforcement (verified empirically before the fix: vacuous PASS on retry 2). Three-line downstream fix: `PROMPT=$(cat)` once at top, `printf '%s\n' "$PROMPT"` in retry pipeline. Aligned with spec intent (retry-with-reinforcement); does not modify spec semantics. Synced as implementation note to agents-master.
+
+#### Usage (opt-in)
+
+The wrapper is opt-in tooling — not auto-injected anywhere. Symlink to PATH or invoke via full path:
+
+```bash
+echo "<question>" | ~/Documents/om-superpowers/bin/claude-validated --model claude-opus-4-7
+
+# Or symlink for short invocation
+ln -sf ~/Documents/om-superpowers/bin/claude-validated ~/bin/claude-validated
+```
+
+#### What it does NOT cover (named for honesty)
+
+- Interactive Claude Code sessions (this chat) — wrapper is post-emit, not streaming; no insertion point in a live session
+- Claude Desktop, Claude Web — wrapper is a bash script, terminal-only
+- Plain `claude` invocations without `-p` — wrapper specifically targets headless mode
+- Other prompt classes (spec writing, implementation orchestration) — each needs its own validator regex set if the same fabrication shape appears
+- The model's training-internalized output shape — the wrapper addresses the symptom (fabrication leaks past skill body), not the cause
+
+For interactive enforcement, Claude Code hooks would be needed (option (b) from S011, deferred until empirical demand).
+
+### Refactor — om-cto/SKILL.md persona-prune
+
+Empirical evidence from probe 3 of the S011 verification chain: `# Piotr — advisory:` H1 fired as a fabrication shield even after `piotr-decision-library.md` prune. SKILL.md was the load-bearing surface for the persona shield, not the library file.
+
+This release removes:
+- `# Piotr` H1 (replaced with `# om-cto`)
+- Persona-narrative paragraph ("Piotr Karwatka — CTO of Open Mercato, 1,400+ contributions...")
+- "Red Flags" `Piotr says` table (8 rows)
+
+Four surviving "Piotr" references in lower SKILL.md sections (Task Router row, User Proxy Integration, Architecture Direction, closing line) were not load-bearing per probe 3 data and are intentionally left for a future surgical pass if needed. The wrapper's validator `#3` catches residual prose-level invocations regardless of where in the skill the persona content lives — the persona does not need to be pruned everywhere, just out of the output.
+
+### Files touched
+
+- `bin/claude-validated` (new) — bash wrapper, ~80 lines, executable. Implements I018 with downstream stdin-fix. Already landed standalone in commit `8ca946c`.
+- `skills/om-cto/SKILL.md` — persona-prune, 2 hunks (-13 net lines). Already landed standalone in commit `c288c45`.
+- `CHANGELOG.md` — this entry.
+- `.claude-plugin/plugin.json` + `.claude-plugin/marketplace.json` — version 1.14.0.
+- `README.md` — v1.14.0 callout in Quality & Testing section.
+
+The two functional commits (`c288c45` + `8ca946c`) landed during the verification work and were pushed standalone before this version bump. This release commit packages them with the manifest bump so users actually receive both changes via `/plugins marketplace update`.
+
+#### Cross-refs
+
+- `agents-master/improvements/I018.md` (wrapper spec, output-validator design)
+- `agents-master/sessions/S011.md` (failure analysis driving I018: 4 replays of progressively-tightened text gates, all bypassed)
+- `agents-master/improvements/I017.md` (Musk Step 2 attempt: replace Advisory with Research Plan; empirically failed; partial revert kept SKILL.md persona-prune)
+- `agents-master/improvements/I016.md` (Phase 6 doubt-check; in-vitro adoption test passed but in-vivo deployment via skill-text channel failed; superseded by I018)
+
 ## 1.13.0
 
 ### Added — DS Guardian sync infrastructure (`scripts/sync/ds.mjs`)
