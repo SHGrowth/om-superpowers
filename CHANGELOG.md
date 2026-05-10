@@ -1,5 +1,73 @@
 # Changelog
 
+## 1.17.1 — versioned routing marker + alignment partial-execution fix + version-compare detection
+
+### Fixed — v1.17.0's confirm-overwrite flow could leave consumers half-aligned
+
+v1.17.0 shipped the SessionStart confirm-overwrite flow: hook offers alignment, agent runs `AskUserQuestion`, on YES the agent backs up `AGENTS.md`, reads canonical, writes canonical. In practice, observed in the first session that hit v1.17.0 in patryk-standalone: agent ran the `cp AGENTS.md AGENTS.md.bak` step and then **stopped** without performing the subsequent `Read` + `Write`. Result: `AGENTS.md.bak` and `AGENTS.md` were byte-identical (no marker on either), and on the next session the hook re-fired the offer (correctly — the marker was still missing).
+
+Root cause: the v1.17.0 instruction block listed five steps for the Yes-flow and ended with "Continue with the user's original prompt", which was too inviting an off-ramp. The agent treated the alignment work as low-priority background and skipped to the user's actual prompt after creating the backup, never completing the overwrite.
+
+v1.17.1 tightens the flow with three changes:
+
+1. **Atomic execution framing** — the Yes-flow instruction now reads "These three tool calls happen back-to-back in a single agent response. Do not pause for the user, do not start work on their original prompt, until all four steps complete (or step 4 detects a problem)."
+2. **Show-diff guard** — the v1.17.0 `Show diff first` option was ambiguous about whether to create the `.bak` preemptively. v1.17.1 makes it explicit: "If the user picks 'Show diff first', DO NOT create `AGENTS.md.bak` and DO NOT modify `AGENTS.md`. Read both files, present a focused diff, re-ask with only Yes/No options."
+3. **Post-Write marker verification** — required step 4 now says "`Bash` `head -1 AGENTS.md` and confirm it contains `om-superpowers:routing v=<plugin-version>`. If the marker is NOT on line 1, the Write failed — investigate and retry before moving on." This catches the partial-execution case proactively rather than detecting it on the next session.
+
+### Added — versioned marker format + version-compare detection
+
+v1.17.0's marker (`<!-- om-superpowers:routing:v1.17.0 -->`) was a binary "this happened once" receipt. v1.17.1 promotes it into a **version pin** that the hook reconciles on every session:
+
+**New marker format:** `<!-- om-superpowers:routing v=X.Y.Z synced=YYYY-MM-DD -->`
+
+Both fields are stamped at canonical-generation time by `scripts/transform-agents-template.py` (today's date as ISO 8601). When a consumer aligns, they inherit both fields verbatim via the overwrite.
+
+**Hook logic** (`hooks/session-start`):
+
+| Consumer state | Hook behavior |
+|---|---|
+| No `AGENTS.md` | Initial alignment offer |
+| `AGENTS.md` exists, no marker | Initial alignment offer ("likely scaffolded from older create-mercato-app or never aligned") |
+| Marker `v=` matches plugin version | Silent (up to date) |
+| Marker `v=` older than plugin version | Refresh offer with reason text: "aligned at plugin vX.Y.Z (synced YYYY-MM-DD); current plugin is vA.B.C — newer canonical may have updated routing rows, Critical Rules, or Mandatory Module Mechanisms" |
+
+Refresh-offer wording differs from initial-alignment wording (different `OFFER_HEADER` + `QUESTION_TEXT`); the Yes/No/Show-diff flow is otherwise identical.
+
+### No backward compatibility for v1.17.0-format markers
+
+v1.17.0's marker format (`routing:v1.17.0`, no `v=` attribute syntax) is treated as "no marker" under v1.17.1's parser and triggers re-alignment. This is acceptable because zero v1.17.0 markers existed in the wild at the time of the format change — the v1.17.0 partial-execution bug prevented any successful alignment writes.
+
+### Also fixed — silent hook crash under `set -euo pipefail` when marker absent
+
+The marker-parsing grep (`grep -oE 'om-superpowers:routing v=[0-9.]+' AGENTS.md`) exits 1 when the marker is absent. Under `set -euo pipefail`, the pipe's leftmost non-zero exit propagates and silently killed the entire hook for consumers without a marker. Wrapped the grep in `{ ... || true; }` (same pattern already used elsewhere in the script at line 76 for the approved-specs grep) so absence resolves to an empty string instead of crashing.
+
+This bug was caught during v1.17.1 smoke-testing when patryk-standalone (no marker) produced empty hook output instead of the expected initial-alignment offer.
+
+### Smoke-test results
+
+Hook tested against five scenarios — all green:
+
+| Scenario | Marker state | Expected offer | Actual |
+|---|---|---|---|
+| patryk-standalone (no marker, `.ai/skills/` empty) | absent | Initial alignment | ✓ |
+| `/tmp/aligned-test-1171` (marker `v=1.17.1`, plugin `v=1.17.1`) | matches | Silent | ✓ |
+| `/tmp/aligned-test-1170` (marker `v=1.17.0`, plugin `v=1.17.1`) | mismatch | Refresh, reason mentions `v1.17.0 → v1.17.1` | ✓ |
+| App #2 wizard (no marker, `.ai/skills/` has 19 SKILL.md) | absent | Initial alignment + Legacy warning | ✓ both |
+| `~` (non-OM dir) | n/a | Hook outputs `{}` | ✓ |
+
+### Files touched
+
+- `hooks/session-start` — version-compare detection block (~30 lines net), tightened alignment instruction block (~40 lines rewritten), silent-crash fix (2 grep wrappers)
+- `scripts/transform-agents-template.py` — marker format updated to `routing v=X.Y.Z synced=YYYY-MM-DD`; `datetime.date.today().isoformat()` stamps the synced date at generation time
+- `templates/AGENTS.md` — regenerated with v1.17.1 marker (`v=1.17.1 synced=2026-05-11`); content otherwise identical to v1.17.0 canonical
+- `.claude-plugin/plugin.json` — version bump 1.17.0 → 1.17.1
+- `.claude-plugin/marketplace.json` — version bump 1.17.0 → 1.17.1
+
+### Migration notes
+
+- Consumer apps that successfully aligned under v1.17.0 (none known to exist due to the partial-execution bug, but in theory) will see a Refresh offer on next SessionStart with v1.17.1. The refresh writes the new marker format and brings them in lockstep with the current plugin version.
+- Future plugin releases that ship updated `templates/AGENTS.md` content will cause aligned consumers to see a Refresh offer automatically. The marker version-compare is the trigger — no consumer-side action needed for the hook to detect drift.
+
 ## 1.17.0 — canonical AGENTS.md template + sync-driven generation + confirm-overwrite flow
 
 ### Added — plugin ships its own AGENTS.md routing template

@@ -1,4 +1,4 @@
-<!-- om-superpowers:routing:v1.17.0 -->
+<!-- om-superpowers:routing v=1.17.1 synced=2026-05-11 -->
 # Agent Context Routing — Open Mercato App
 
 **MANDATORY CONTEXT LOADING** — see the "BEFORE writing ANY code" Critical Rule below.

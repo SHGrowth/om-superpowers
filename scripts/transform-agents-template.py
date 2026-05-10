@@ -6,12 +6,17 @@ applies the routing transform map (rewrites `.ai/skills/<name>/SKILL.md`
 references to `om-superpowers:om-<canonical>` invocations), drops table rows
 and prose blocks that reference skills with no plugin equivalent (auto-*-loop,
 auto-fix-github, auto-upgrade-0.4.10-to-0.5.0, trim-unused-modules), substitutes
-the {{PROJECT_NAME}} placeholder, prepends a versioned plugin marker, writes
-the result.
+the {{PROJECT_NAME}} placeholder, prepends a versioned plugin marker carrying
+both the plugin version AND the canonical's sync date (so the hook can detect
+when a consumer's aligned AGENTS.md has drifted from the current canonical
+and offer a refresh).
+
+Marker format: `<!-- om-superpowers:routing v=X.Y.Z synced=YYYY-MM-DD -->`
 
 Usage:
   python3 transform-agents-template.py <src> <dest> <plugin-version>
 """
+import datetime
 import re
 import sys
 from pathlib import Path
@@ -190,9 +195,12 @@ def main() -> None:
     # guess the consumer's project name at sync time.
     transformed = transformed.replace("{{PROJECT_NAME}}", "Open Mercato App")
 
-    # Prepend versioned marker so the hook can detect "already aligned" vs
-    # "needs offer". Place at the very top, above the H1.
-    marker = f"<!-- om-superpowers:routing:v{version} -->\n"
+    # Prepend versioned marker so the hook can detect "already aligned at this
+    # plugin version" vs "needs refresh because plugin has moved on". The hook
+    # parses `v=` for the version compare and uses `synced=` for the offer's
+    # reason text. Format frozen as of v1.17.1.
+    synced = datetime.date.today().isoformat()
+    marker = f"<!-- om-superpowers:routing v={version} synced={synced} -->\n"
     transformed = marker + transformed
 
     dest.parent.mkdir(parents=True, exist_ok=True)

@@ -44,23 +44,53 @@ if [ -d ".ai/skills" ] && [ -n "$(find .ai/skills -maxdepth 3 -name SKILL.md -pr
 fi
 
 # Detect AGENTS.md alignment state.
-# Under current policy, the plugin ships a canonical AGENTS.md routing template at
-# `${CLAUDE_PLUGIN_ROOT}/templates/AGENTS.md`. Consumer apps that don't have an
-# AGENTS.md at all, or have one without the plugin's routing marker, are offered
-# (via user confirmation) an alignment overwrite. A previously-aligned consumer
-# carries `<!-- om-superpowers:routing:v<X.Y.Z> -->` near the top — that's the
-# receipt that suppresses the offer on subsequent sessions.
+# Under current policy, the plugin ships a canonical AGENTS.md routing template
+# at `${CLAUDE_PLUGIN_ROOT}/templates/AGENTS.md`. Each canonical carries a
+# `<!-- om-superpowers:routing v=X.Y.Z synced=YYYY-MM-DD -->` marker at line 1.
+# Consumer apps that successfully align inherit the marker via overwrite, which
+# acts as a version pin. The hook reconciles consumer marker version against
+# the plugin's current version on each session start:
+#   - no marker → offer initial alignment
+#   - marker version == plugin version → silent (up to date)
+#   - marker version != plugin version → offer refresh (newer canonical available)
+#
+# Marker format frozen as of v1.17.1; the v1.17.0 format (`routing:v1.17.0`,
+# no space, no version-attribute syntax) is treated as "no marker" and triggers
+# re-alignment. Zero v1.17.0 markers existed in the wild at the time of the
+# format change (alignment write never completed under v1.17.0), so there's no
+# upgrade footprint to preserve.
 canonical_agents_md="${PLUGIN_ROOT}/templates/AGENTS.md"
 needs_agents_alignment=false
 agents_alignment_reason=""
+agents_alignment_kind=""  # "initial" or "refresh" — controls offer wording
 
-if [ -f "$canonical_agents_md" ]; then
+plugin_version=""
+if [ -f "${PLUGIN_ROOT}/.claude-plugin/plugin.json" ]; then
+  plugin_version=$(grep -E '^[[:space:]]*"version"' "${PLUGIN_ROOT}/.claude-plugin/plugin.json" | head -1 | sed -E 's/.*"version"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')
+fi
+
+if [ -f "$canonical_agents_md" ] && [ -n "$plugin_version" ]; then
   if [ ! -f "AGENTS.md" ]; then
     needs_agents_alignment=true
+    agents_alignment_kind="initial"
     agents_alignment_reason="no AGENTS.md exists in this consumer app"
-  elif ! grep -q '<!-- om-superpowers:routing:v' AGENTS.md 2>/dev/null; then
-    needs_agents_alignment=true
-    agents_alignment_reason="AGENTS.md exists but lacks the plugin routing marker — likely scaffolded from an older create-mercato-app version or was never aligned to plugin-namespace routing"
+  else
+    # Parse marker — `v=X.Y.Z` is authoritative; `synced=...` is informational.
+    # Wrap each grep in a `|| true` so a missing marker (grep exits 1) doesn't
+    # trip `set -euo pipefail` and silently kill the whole hook.
+    consumer_marker_version=$( { grep -oE 'om-superpowers:routing v=[0-9.]+' AGENTS.md 2>/dev/null || true; } | head -1 | sed 's/.*v=//')
+    consumer_synced=$( { grep -oE 'synced=[0-9-]+' AGENTS.md 2>/dev/null || true; } | head -1 | sed 's/synced=//')
+
+    if [ -z "$consumer_marker_version" ]; then
+      needs_agents_alignment=true
+      agents_alignment_kind="initial"
+      agents_alignment_reason="AGENTS.md exists but lacks the plugin routing marker — likely scaffolded from an older create-mercato-app version, never aligned, or aligned under a pre-v1.17.1 marker format"
+    elif [ "$consumer_marker_version" != "$plugin_version" ]; then
+      needs_agents_alignment=true
+      agents_alignment_kind="refresh"
+      agents_alignment_reason="AGENTS.md aligned at plugin v${consumer_marker_version} (synced ${consumer_synced:-unknown}); current plugin is v${plugin_version} — newer canonical may have updated routing rows, Critical Rules, or Mandatory Module Mechanisms"
+    fi
+    # else: versions match → silent
   fi
 fi
 
@@ -236,11 +266,27 @@ LEGEOF
 fi
 
 # AGENTS.md alignment offer — confirm-then-overwrite flow. Triggers when the
-# consumer's AGENTS.md is missing or lacks the plugin routing marker. The hook
-# only emits instructions; the agent does the work after the user confirms.
-# This is the v1.17.0 mechanism that supersedes manual AGENTS.md patching.
+# consumer's AGENTS.md is missing, lacks the plugin routing marker, or carries
+# a marker for an older plugin version. Two kinds of offer, both with the same
+# Yes/No/Show-diff option set but different prompt wording so the user knows
+# whether it's a first-time alignment or a refresh.
+#
+# IMPORTANT — this instruction block is intentionally explicit about
+# atomic execution because v1.17.0 sessions hit a partial-execution bug:
+# agent created AGENTS.md.bak via `cp` but never proceeded to Read+Write,
+# leaving the consumer "half-aligned" (backup exists, original unchanged, no
+# marker present). The v1.17.1 instructions below make the Yes-flow atomic
+# and require a post-Write marker verification.
 if [ "$needs_agents_alignment" = true ]; then
-  AGENTS_ALIGNMENT_OFFER=$(printf '\n\n## AGENTS.md Alignment Available — Confirm With User Before Overwriting\n\nThe canonical om-superpowers routing template lives at `%s` and contains the up-to-date Task → Plugin Skill map (plugin-namespace invocations, current Critical Rules, Mandatory Module Mechanisms table). The current consumer-app AGENTS.md state: **%s**.\n\n### What to do BEFORE responding to the user'"'"'s actual prompt\n\nInvoke `AskUserQuestion` with a single question — phrase it close to this:\n\n> "Align this app'"'"'s `AGENTS.md` with the om-superpowers canonical routing template? Existing `AGENTS.md` (if any) will be backed up to `AGENTS.md.bak`. The canonical contains updated plugin-namespace routing but may not include project-specific notes from your existing file — you may want to copy those back manually afterwards."\n\nOptions:\n- **Yes, align now** — perform the overwrite (see steps below)\n- **No, skip this session** — do nothing; do not re-prompt this session\n- **Show diff first** — display the diff between the existing `AGENTS.md` and the canonical, then re-ask\n\n### On user YES (align now)\n\n1. If `AGENTS.md` exists, back it up: `Bash` → `cp AGENTS.md AGENTS.md.bak` (overwriting any prior `.bak`)\n2. `Read` `%s`\n3. `Write` the entire canonical content to `AGENTS.md`\n4. Confirm to the user: "Aligned. Backup at `AGENTS.md.bak`. The canonical contains plugin-namespace routing; review the .bak for project-specific notes (env vars, integration setup, module-specific guidance) and merge them back into AGENTS.md manually."\n5. Continue with the user'"'"'s original prompt.\n\n### On user NO (skip this session)\n\nDo not offer again this session. Move on to the user'"'"'s actual prompt.\n\n### Important constraints\n\n- Do NOT overwrite without explicit user confirmation. The canonical does not preserve project-specific content; silent overwrite would destroy it.\n- Do NOT add the user'"'"'s project-specific content to the canonical automatically. The plugin'"'"'s template is intentionally generic; project-specific notes are the consumer'"'"'s responsibility.\n- Do NOT offer this if the user has already declined in the current session (track via your own conversation memory).\n' "$canonical_agents_md" "$agents_alignment_reason" "$canonical_agents_md")
+  if [ "$agents_alignment_kind" = "refresh" ]; then
+    OFFER_HEADER="AGENTS.md Refresh Available — Plugin Version Drifted"
+    QUESTION_TEXT="Refresh this app's \`AGENTS.md\` to plugin v${plugin_version}'s canonical? Existing \`AGENTS.md\` will be backed up to \`AGENTS.md.bak\` (overwriting any prior backup). Differences may include updated Critical Rules, new Mandatory Module Mechanisms rows, or revised plugin-namespace routing — review the diff (Show diff first) if unsure."
+  else
+    OFFER_HEADER="AGENTS.md Alignment Available — Confirm With User Before Overwriting"
+    QUESTION_TEXT="Align this app's \`AGENTS.md\` with the om-superpowers canonical routing template (plugin v${plugin_version})? Existing \`AGENTS.md\` (if any) will be backed up to \`AGENTS.md.bak\`. The canonical contains plugin-namespace routing but may not include project-specific notes from your existing file — you may want to copy those back manually afterwards."
+  fi
+
+  AGENTS_ALIGNMENT_OFFER=$(printf '\n\n## %s\n\nThe canonical om-superpowers routing template lives at `%s`. The current consumer-app AGENTS.md state: **%s**.\n\n### What to do BEFORE responding to the user'"'"'s actual prompt\n\nInvoke `AskUserQuestion` with a single question — phrase it close to this:\n\n> "%s"\n\nOptions to present:\n- **Yes, %s now** — perform the overwrite (see Yes-flow below)\n- **No, skip this session** — do nothing; do not re-prompt this session\n- **Show diff first** — display the diff, then re-ask (see Show-diff flow below)\n\n### Yes-flow — execute as ONE response (do NOT interleave with other work)\n\nThese three tool calls happen back-to-back in a single agent response. Do not pause for the user, do not start work on their original prompt, until all four steps complete (or step 4 detects a problem):\n\n1. **Bash**: `cp AGENTS.md AGENTS.md.bak` (only if `AGENTS.md` currently exists; overwriting any prior `.bak`)\n2. **Read** `%s` (the canonical)\n3. **Write** the entire canonical content (verbatim, including the marker line) to `AGENTS.md`\n4. **Verification — REQUIRED**: `Bash` `head -1 AGENTS.md` and confirm it contains `om-superpowers:routing v=%s`. If the marker is NOT on line 1, the Write failed — investigate (path, permissions, content truncation) and retry before moving on.\n\nOnly after step 4 confirms the marker is present:\n5. Tell the user: "Aligned to plugin v%s. Backup at `AGENTS.md.bak`. The canonical contains plugin-namespace routing; review the .bak for project-specific notes (env vars, integration setup, module-specific guidance) and merge them back into `AGENTS.md` manually."\n6. Continue with the user'"'"'s original prompt.\n\n### Show-diff flow — DO NOT cp anything yet\n\nIf the user picks "Show diff first", DO NOT create `AGENTS.md.bak` and DO NOT modify `AGENTS.md`. Instead:\n\n1. `Read` the current `AGENTS.md`\n2. `Read` the canonical at `%s`\n3. Present a focused diff to the user — summarize the substantive differences (added routing rows, removed Critical Rules, marker version delta). Do NOT dump the full file contents.\n4. Re-invoke `AskUserQuestion` with only `Yes, %s now` / `No, skip this session` options.\n5. If `Yes` → run the Yes-flow above. If `No` → skip this session.\n\n### No-flow\n\nDo not offer again this session. Move on to the user'"'"'s actual prompt.\n\n### Constraints — read carefully\n\n- Do NOT create `AGENTS.md.bak` until the user has explicitly confirmed `Yes`. Premature `.bak` creation is the v1.17.0 bug — the cp ran but the subsequent Write did not, leaving the consumer half-aligned.\n- Do NOT overwrite `AGENTS.md` without explicit `Yes` confirmation. The canonical does not preserve project-specific content; silent overwrite would destroy it.\n- Do NOT add the user'"'"'s project-specific content to the canonical automatically. The plugin'"'"'s template is intentionally generic; project-specific notes are the consumer'"'"'s responsibility.\n- Do NOT offer this if the user has already declined in the current session (track via your own conversation memory).\n' "$OFFER_HEADER" "$canonical_agents_md" "$agents_alignment_reason" "$QUESTION_TEXT" "$agents_alignment_kind" "$canonical_agents_md" "$plugin_version" "$plugin_version" "$canonical_agents_md" "$agents_alignment_kind")
 
   OM_CONTEXT="${OM_CONTEXT}${AGENTS_ALIGNMENT_OFFER}"
 fi
