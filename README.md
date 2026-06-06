@@ -195,6 +195,7 @@ These specialist tools are not user-invocable as top-level skills. The parent sk
 
 | Reference | Parent | When the parent loads it |
 |-----------|--------|--------------------------|
+| `om-cto/references/gap-analysis-batch.md` | `om-cto` | Multi-document engagement scoping — a folder of client docs → a persisted, gh-grounded Epic/Story backlog |
 | `om-cto/references/spec-writing/` | `om-cto` | Writing or reviewing a SPEC against staff-engineer standards |
 | `om-cto/references/user-proxy.md` | `om-cto` | Resolving routine questions on the user's behalf before escalation |
 | `om-cto/references/pre-impl-analysis.md` | `om-cto` | Pre-implementation BC/risk audit at the spec→impl gate |

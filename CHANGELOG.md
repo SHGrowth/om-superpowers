@@ -1,5 +1,49 @@
 # Changelog
 
+## 1.18.0 — om-cto Batch Gap Analysis mode (folded from a candidate standalone skill)
+
+### Added — a fourth om-cto mode for multi-document engagement scoping
+
+A candidate standalone `gap-analysis` skill (`~/Downloads/gap-analysis/`, 3 files) answered the same question om-cto already answers — *client requirements vs. what Open Mercato already provides* — but in a different shape: batch / multi-story / file-persisted, versus Advisory's interactive / single-question shape. Rather than ship it as a 12th top-level skill, v1.18.0 **folds its distinctive machinery into `om-cto`** as a fourth mode. Net surface change: **+1 reference, +1 bin script, +0 top-level skills** — honoring the surface-budget rule and the v1.16.0 `om-orchestrate` deletion precedent. Source spec: `agents-master/improvements/I019.md`.
+
+**New reference** `skills/om-cto/references/gap-analysis-batch.md` carries the genuinely-new machinery: doc intake → Epic/Story MD tree → batched read-only subagent verification → persisted resumable source-of-truth (`status: pending|done|needs-review`) → summary + backlog synthesis, with `/clear`-between-phases context discipline. All three candidate files are folded into this one file — which also **fixes a bug in the candidate**: its `SKILL.md` referenced `references/open-mercato-investigation.md` and `references/synthesis-templates.md`, but both sat flat in the folder root with no `references/` subdir, so the templates could never load. One file, no path bug.
+
+**Routing:** `om-cto/SKILL.md` gains one Task-Router row, one Mode-Detection clause (a *directory* of client docs → Batch; a *single question* → Advisory, unchanged), and a Flow line. "Three modes" → "Four modes".
+
+### Why it could not ship as-is — three conflicts resolved by the fold
+
+1. **Currency.** The candidate measured effort in T-shirt person-days (XS–XL); om-cto standardized on **atomic-commit scores (0–5)** (`references/atomic-commits.md`). Run both and the backlogs can't merge. The folded mode inherits the atomic-commit currency; the gate rejects any leaked T-shirt size.
+
+2. **Search source.** The candidate grepped the **local checkout** (stale/dirty/a vertical fork — it even named DentalOS). The folded mode adopts Advisory's verdict-conditional source-of-evidence rule, **tightened**: vendored `om-reference/` is for *orientation only, never a verdict*; every verdict cites live `gh search code`. This is grounded in empirical precedent — the **TagsInput drift bug** (v1.13.0), where a stale curated reference shipped a confident wrong verdict. Batch mode fans out unattended across dozens of stories, so snapshot staleness would compound silently.
+
+3. **The I018 fabrication hole.** The candidate's subagents returned verdicts through a **pure-prose schema** with no `## Sources` rule, no no-match-must-be-cited rule, no fraction-not-percentage rule, and no enforcement outside the model loop — exactly the failure `feedback_text_channel_does_not_bind` (N=16) proved prose cannot fix.
+
+### New — `bin/gap-validate-finding`, the structural gate (the load-bearing piece)
+
+The candidate dispatches verification via the **Task tool**, which `bin/claude-validated` (a `claude -p` wrapper) does **not** intercept — so "run the subagents through claude-validated" is a category error. The binding check therefore lives in the **orchestrator's parse step**: a new sibling script `bin/gap-validate-finding` that each returned findings block must pass before being written to the MD. Two layers, both outside the subagent's model loop (per S011):
+
+- **Form** — five I018-lineage regex checks, adapted to the atomic-commit currency: no percentage without `N/M`, no hedges (EN + the Polish hedges S011 surfaced), no persona labels, no leaked T-shirt size, effort present as a 0–5 score.
+- **Grounding** — the orchestrator **re-runs** the subagent's cited `gh search code` query and compares the live result to the claimed verdict. A `❌ Missing` whose query returns live hits is rejected (the TagsInput trap); an empty `✅/🟡` is rejected. This is the correction the I019 review forced: a regex over the *citation string* only proves a string is present — it cannot tell a real `no match` from a hallucinated one. The re-run is the only thing that makes the staleness test pass. The script exits 0 (write) / 1 (fail → `needs-review` + re-dispatch once) / 2 (gh rate-limited → re-queue, don't penalize the verdict). Verified against live `gh`: a fabricated `❌ Missing` with a real-hit query returns exit 1; a true `❌` with a genuinely-empty query returns exit 0.
+
+### Rate-limit discipline — not hand-waved
+
+GitHub code search allows ~30 req/min + an undocumented secondary limiter. The orchestrator is the **single canonical caller** of `gh` for grounding (subagents only *name* the query), validates the 5 returned blocks **sequentially** (not in parallel), and the gate sleeps ~2.5s after each query (~24/min). RETRY-LATER deferrals are surfaced and marked `needs-review`, never silently sampled.
+
+### Scope honesty — the gate is a falsifier, not a truth oracle
+
+Recorded in the reference and the script header as known gaps, so a green run is not mistaken for "everything verified": (1) a `gh` hit proves a string matches, not that the code satisfies acceptance criteria; (2) a fabricated *live*-`✅` is accepted on shape-trust for rate budget and caught downstream at implementation. The gate **closes the stale-absence hole** (the TagsInput failure mode) and the false-`❌` half of the I018 hole; the fabrication hole is narrowed, not sealed. Spins off candidate **I020** (apply the same line-99 tightening to Advisory itself).
+
+### Review pass — `docs/specs/2026-06-06-gap-validate-finding-review.md` (3 blockers/fixes folded in before merge)
+
+A round-1 review ran the gate against live `gh` + crafted blocks and found three issues, now fixed (repros + a 12-case regression all green):
+
+- **#1 verdict misparse (blocker).** The verdict `case` substring-matched `*Missing*`/`*Implemented*`, so a positive line like `✅ Implemented (no fields Missing)` classified as `missing` and got false-rejected. Fix: the **emoji is authoritative**; the verdict word is consulted only as the *leading token* of the verdict value, never as a substring of the line.
+- **#2 degenerate-query self-confirm (blocker, S012).** The gate checked query↔verdict agreement — a *proxy* a subagent satisfies by naming a strawman query (`zzqxnonexistentmodule12345`) unrelated to the story. This is the `feedback_text_channel_does_not_bind` N=17/S012 failure class (a structural gate green on a proxy while silent on the goal). Fix: the gate now takes `--story <file>` and **requires** it to ground a `❌ Missing`; a `❌` whose query shares no noun token with the story title/criteria is rejected. The same token guard covers vendored positives. This closes the hole I019 §88 had deferred to "v2" on the `❌` path; what remains is the finer *too-narrow-but-related* query, which collapses into the semantic-relevance hole.
+- **#3 permanent-gh / flag injection (low).** A leading-`-` grounding query parsed as a `gh` flag and a *permanent* gh failure returned `exit 2` (same as rate-limit) → infinite re-queue. Fix: leading-`-` queries are rejected in the form layer, the query is passed after `--`, and permanent `gh` failures now return `exit 1` (needs-review) — distinct from the transient `exit 2` re-queue.
+- **#6 serialization (note).** `flock` is unavailable on the target shell (macOS bash 3.2); the reference now states explicitly that sequential validation is prose-bound *because it fails safe* — parallel access trips the secondary limiter → `exit 2` → re-queue, never a bad write.
+
+The review's verified-good behaviors (live grounding re-run catching the TagsInput trap, `⚠️ Unclear` bypass, vendored-`✅` re-grounding, live-`✅` shape-trust, T-shirt/%/persona/missing-effort form rejects) were preserved and re-confirmed.
+
 ## 1.17.1 — versioned routing marker + alignment partial-execution fix + version-compare detection
 
 ### Fixed — v1.17.0's confirm-overwrite flow could leave consumers half-aligned
