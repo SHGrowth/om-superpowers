@@ -5,7 +5,7 @@ description: Open Mercato architecture skill — gap analysis, BC/risk analysis,
 
 # om-cto
 
-Architecture and gap-analysis skill for Open Mercato. Three modes: Advisory (questions about platform), Spec Orchestrator (App Spec → functional specs), Implementation Orchestrator (approved specs → code).
+Architecture and gap-analysis skill for Open Mercato. Four modes: Advisory (single question about platform), Batch Gap Analysis (a folder of client docs → persisted Epic/Story backlog), Spec Orchestrator (App Spec → functional specs), Implementation Orchestrator (approved specs → code).
 
 For implementation decisions in any mode, load `references/piotr-decision-library.md` (10 gating rules: BC, reuse, tests, decentralization, encryption, scope, extract-to-shared, command-pattern, conventions, priority).
 
@@ -16,6 +16,7 @@ Load only the reference you need. Never load all at once.
 | Task | Load |
 |------|------|
 | Gap analysis, "does OM do X?", PR review, standalone questions | `references/advisory.md` |
+| Multi-document engagement scoping (folder of transcripts/specs → epic/story backlog) | `references/gap-analysis-batch.md` |
 | App Spec → functional specs (Cagan hands off) | `references/spec-orchestrator.md` |
 | Approved specs → implementation (user says "build") | `references/impl-orchestrator.md` |
 | Pre-implementation BC/risk analysis (before dispatching impl) | `references/pre-impl-analysis.md` |
@@ -31,7 +32,8 @@ Load only the reference you need. Never load all at once.
 
 1. If an App Spec document was just completed by Cagan (om-product-manager) → **Spec Orchestrator**
 2. If the user references approved specs and says "build", "implement", "start", "go" → **Implementation Orchestrator**
-3. Everything else → **Advisory**
+3. If the user points at a *directory of client docs* (transcripts/specs) or an existing `gap-analysis/<project>.md` and asks what to build vs. what OM already provides → **Batch Gap Analysis** (`references/gap-analysis-batch.md`)
+4. Everything else (a single capability question) → **Advisory**
 
 ## User Proxy Integration
 
@@ -63,6 +65,7 @@ The platform grows by becoming more extensible, not bigger. Piotr doesn't add fe
 
 ```
 Advisory:     user question → load advisory.md → investigate → findings report
+Batch GA:     folder of client docs → load gap-analysis-batch.md → scope (tree) → /clear → gated batch verify → synthesize backlog
 Spec:         cagan hands off app spec → load spec-orchestrator.md → decompose → write specs → user reviews
 Implement:    user approves → load impl-orchestrator.md → dispatch per-spec → test → review → user tests → next spec
 ```

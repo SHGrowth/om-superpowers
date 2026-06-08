@@ -1,0 +1,222 @@
+#!/usr/bin/env bash
+# gap-validate-finding — structural gate for one gap-analysis findings block.
+# Usage:  gap-validate-finding <story-id> [--story <file>]  < findings-block.md
+#
+#   --story <file>  Story context (title + acceptance criteria) the verdict is
+#                   about. REQUIRED to ground a ❌ Missing — without it the gate
+#                   cannot prove the grounding query is non-degenerate, so the
+#                   absence verdict cannot be trusted (S012 strawman guard).
+#                   Falls back to env GAP_STORY if the flag is absent.
+#
+# Source spec: agents-master/improvements/I019.md (§4 "Inherit the gate" +
+# §Verification tests 3/4). Review: docs/specs/2026-06-06-gap-validate-finding-review.md
+# (findings #1 verdict-misparse, #2 degenerate-query/S012, #3 permanent-gh/flag).
+# Sibling of bin/claude-validated (I018) — same reject-and-retry contract, but
+# relocated into the BATCH-MODE orchestrator's parse step because the candidate
+# dispatches verification via the Task tool, which claude-validated (a claude -p
+# wrapper) does not intercept.
+#
+# Two layers, both outside the subagent's model loop (per S011/S012 /
+# feedback_text_channel_does_not_bind):
+#   FORM      — regex checks (I018 lineage), adapted to atomic-commit currency.
+#   GROUNDING — the orchestrator RE-RUNS the cited `gh search code` query and
+#               compares the live result to the claimed verdict. A regex over
+#               the returned citation only proves a string is present; it cannot
+#               tell a real `no match` from a hallucinated one. AND the query
+#               must share a noun with the story (else a strawman query
+#               self-confirms a ❌ — S012). Test 4 (staleness) is unsatisfiable
+#               without the re-run.
+#
+# Exit codes:
+#   0  PASS         — write the block to the MD.
+#   1  FAIL         — block malformed, verdict contradicted by the live re-run,
+#                     grounding query degenerate, or gh returned a PERMANENT
+#                     error (bad query). Orchestrator marks story needs-review
+#                     and re-dispatches once with reinforcement.
+#   2  RETRY-LATER  — gh was rate-limited / transiently unreachable. Grounding
+#                     could not be performed; orchestrator backs off and
+#                     re-queues. NOT a verdict contradiction, NOT permanent.
+#
+# Scope honesty (I019 §88 — these holes remain, by design):
+#   - Falsifier, not confirmer: a `gh` hit proves a string matches, not that the
+#     matched code satisfies the story's acceptance criteria.
+#   - Live-✅ accepted on shape-trust (rate budget); a fabricated live-✅ is
+#     caught downstream at implementation, not here.
+#   The S012 strawman hole on the ❌ path is now CLOSED by the story-token guard
+#   below (review #2); it is no longer deferred to v2.
+
+set -euo pipefail
+
+STORY_ID="${1:-?}"; [ $# -gt 0 ] && shift || true
+OM_REPO="${OM_REPO:-open-mercato/open-mercato}"
+GH_SLEEP="${GH_SLEEP:-2.5}"   # ~24 req/min — under code-search's ~30/min + secondary limiter
+STORY_CONTEXT="${GAP_STORY:-}"
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --story)   STORY_CONTEXT="$(cat "${2:-/dev/null}" 2>/dev/null || true)"; shift 2 || true ;;
+    --story=*) STORY_CONTEXT="$(cat "${1#--story=}" 2>/dev/null || true)"; shift ;;
+    *)         shift ;;
+  esac
+done
+
+BLOCK="$(cat)"
+
+fail() { echo "GATE FAIL [$STORY_ID]: $1" >&2; exit 1; }
+
+# Returns 0 (true = degenerate) when QUERY shares no noun token with the story.
+# Stem-matches on the first 5 chars so plural/inflection (appointment/appointments)
+# still ties. Path/stopword noise is stripped so `modules/<x>` matches on `<x>`.
+degenerate_query() {
+  local q="$1" story="$2" storylc qtokens t stem
+  storylc="$(printf '%s' "$story" | tr 'A-Z' 'a-z')"
+  qtokens="$(printf '%s' "$q" | tr -c '[:alnum:]' ' ' | tr 'A-Z' 'a-z' | tr ' ' '\n' \
+             | grep -vE '^(modules?|packages?|src|code|open|mercato|the|and|for|with|api|app|page|pages|new|core|ui)$' \
+             | awk 'length($0)>=4' || true)"
+  [ -z "$qtokens" ] && return 0   # no usable noun → degenerate
+  while IFS= read -r t; do
+    [ -z "$t" ] && continue
+    stem="${t:0:5}"
+    case "$storylc" in *"$stem"*) return 1 ;; esac   # shared noun → NOT degenerate
+  done <<< "$qtokens"
+  return 0   # nothing shared → degenerate
+}
+
+# ---------------------------------------------------------------------------
+# FORM checks (deterministic regex, no network)
+# ---------------------------------------------------------------------------
+
+# 1 — no percentage without an explicit fraction (I018 check 1)
+if grep -qE "[0-9]+(\.[0-9]+)?%" <<<"$BLOCK" && ! grep -qE "[0-9]+/[0-9]+" <<<"$BLOCK"; then
+  fail "percentage emitted without N/M fraction"
+fi
+
+# 2 — no hedges (I018 check 2; English + the Polish hedges S011 surfaced)
+if grep -iqE "\b(approximately|around|roughly|approx\.|szacunkowo|około|mniej więcej|w przybliżeniu)\b" <<<"$BLOCK" \
+   || grep -qE "~[0-9]" <<<"$BLOCK"; then
+  fail "hedge word before an unmeasured number (output must be measured or absent)"
+fi
+
+# 3 — no persona labels (I018 check 3)
+if grep -iqE "\b(piotr|cagan|piotr-style|cagan-style)\b" <<<"$BLOCK"; then
+  fail "persona invoked as label"
+fi
+
+# 4 — currency: no T-shirt sizes leaked (I019 currency-regression, test 5).
+#     Effort MUST be an atomic-commit score, never XS/S/M/L/XL. Applies always.
+if grep -qE "\*\*Effort\*\*:[[:space:]]*\b(XS|S|M|L|XL)\b" <<<"$BLOCK"; then
+  fail "T-shirt effort size leaked — effort must be an atomic-commit score 0–5"
+fi
+
+# ---------------------------------------------------------------------------
+# Parse the verdict. The EMOJI is authoritative (review #1): a positive line
+# that merely contains the word "Missing" must NOT classify as missing. Fall
+# back to the verdict WORD only when no emoji is present, and only as the
+# leading token of the verdict value — never a substring anywhere in the line.
+# ---------------------------------------------------------------------------
+VERDICT_LINE="$(grep -E "\*\*Verdict\*\*:" <<<"$BLOCK" | head -1 || true)"
+[ -n "$VERDICT_LINE" ] || fail "no **Verdict** line"
+
+if   grep -q "✅" <<<"$VERDICT_LINE"; then VERDICT="implemented"
+elif grep -q "🟡" <<<"$VERDICT_LINE"; then VERDICT="partial"
+elif grep -q "❌" <<<"$VERDICT_LINE"; then VERDICT="missing"
+elif grep -q "⚠️" <<<"$VERDICT_LINE"; then VERDICT="unclear"
+else
+  VVAL="$(sed -E 's/.*\*\*Verdict\*\*:[[:space:]]*//' <<<"$VERDICT_LINE")"
+  case "$VVAL" in
+    [Ii]mplemented*) VERDICT="implemented" ;;
+    [Pp]artial*)     VERDICT="partial" ;;
+    [Mm]issing*)     VERDICT="missing" ;;
+    [Uu]nclear*)     VERDICT="unclear" ;;
+    *) fail "unrecognized verdict (no emoji, no leading verdict word): $VERDICT_LINE" ;;
+  esac
+fi
+
+# ⚠️ Unclear is an honest non-verdict — no capability claim to ground, no effort required.
+if [ "$VERDICT" = "unclear" ]; then
+  echo "GATE PASS [$STORY_ID]: ⚠️ Unclear — no capability claim to ground" >&2
+  exit 0
+fi
+
+# 5 — effort present as an atomic-commit score 0–5 (currency inherited, not forked).
+if ! grep -qE "\*\*Effort\*\*:[[:space:]]*[0-5]\b" <<<"$BLOCK"; then
+  fail "missing or non-numeric atomic-commit effort score (expected 0–5)"
+fi
+
+# ---------------------------------------------------------------------------
+# GROUNDING — re-run the cited query (verdict-conditional, I019 §4 + source rule)
+# ---------------------------------------------------------------------------
+QUERY="$(grep -E "\*\*Grounding query\*\*:" <<<"$BLOCK" | head -1 \
+         | sed -E 's/.*\*\*Grounding query\*\*:[[:space:]]*//; s/^`//; s/`[[:space:]]*$//' || true)"
+GSOURCE="$(grep -E "\*\*Grounding source\*\*:" <<<"$BLOCK" | head -1 \
+           | sed -E 's/.*\*\*Grounding source\*\*:[[:space:]]*//; s/[[:space:]]*$//' | tr '[:upper:]' '[:lower:]' || true)"
+
+# Grounding is REQUIRED for ❌ Missing (always) and for ✅/🟡 whose source is the
+# vendored snapshot. A `live` ✅/🟡 is accepted on shape-trust (I019 §88, hole 3).
+NEEDS_GROUNDING=0
+case "$VERDICT" in
+  missing) NEEDS_GROUNDING=1 ;;
+  implemented|partial) [ "$GSOURCE" = "live" ] || NEEDS_GROUNDING=1 ;;
+esac
+
+if [ "$NEEDS_GROUNDING" = 0 ]; then
+  echo "GATE PASS [$STORY_ID]: $VERDICT (live citation accepted on shape-trust per I019 §88)" >&2
+  exit 0
+fi
+
+[ -n "$QUERY" ] || fail "verdict '$VERDICT' requires grounding but no **Grounding query** field was emitted"
+
+# Review #3: a query beginning with '-' is malformed (parses as a flag / 422s).
+case "$QUERY" in
+  -*) fail "grounding query may not begin with '-' ('$QUERY')" ;;
+esac
+
+# Review #2 (S012): the grounding query must be tied to the story, or a strawman
+# query self-confirms the verdict.
+if [ "$VERDICT" = "missing" ]; then
+  # A ❌ is only trustworthy if its query provably references the story. No story
+  # context → cannot prove non-degeneracy → cannot trust the absence.
+  [ -n "$STORY_CONTEXT" ] || fail "❌ Missing requires story context to verify the grounding query is non-degenerate (S012 strawman guard); pass --story <file>"
+  if degenerate_query "$QUERY" "$STORY_CONTEXT"; then
+    fail "degenerate grounding query '$QUERY' shares no noun with the story — a strawman absence (S012)"
+  fi
+elif [ -n "$STORY_CONTEXT" ]; then
+  # vendored ✅/🟡: token check when context is available (backward-compatible
+  # when it isn't — the live re-run below still runs).
+  if degenerate_query "$QUERY" "$STORY_CONTEXT"; then
+    fail "degenerate grounding query '$QUERY' shares no noun with the story (S012)"
+  fi
+fi
+
+# Re-run the query live. Orchestrator owns this call (single canonical run).
+# `--` terminates flag parsing so the query is never misread as an option.
+GH_ERRFILE="$(mktemp "${TMPDIR:-/tmp}/gap-gh-err.XXXXXX")"
+set +e
+GH_OUT="$(gh search code --repo "$OM_REPO" --limit 5 -- "$QUERY" 2>"$GH_ERRFILE")"
+GH_RC=$?
+GH_ERR="$(cat "$GH_ERRFILE" 2>/dev/null)"; rm -f "$GH_ERRFILE"
+set -e
+sleep "$GH_SLEEP"   # throttle: stay under code-search's ~30/min secondary limiter
+
+if [ $GH_RC -ne 0 ]; then
+  # Review #3: distinguish TRANSIENT (re-queue, exit 2) from PERMANENT (the
+  # query itself is bad → needs-review, exit 1, never an infinite re-queue).
+  if grep -qiE "rate limit|secondary rate|\b403\b|abuse|timeout|timed out|could not resolve|connection|temporar|try again|network" <<<"$GH_ERR"; then
+    echo "GATE RETRY-LATER [$STORY_ID]: gh transient ($GH_RC) — re-queue (\"$QUERY\")" >&2
+    exit 2
+  fi
+  fail "gh permanent failure ($GH_RC) for query \"$QUERY\" — $(head -1 <<<"$GH_ERR") — needs-review, not re-queue"
+fi
+
+HITS=0
+[ -n "$(tr -d '[:space:]' <<<"$GH_OUT")" ] && HITS=1
+
+if [ "$VERDICT" = "missing" ] && [ "$HITS" = 1 ]; then
+  fail "❌ Missing contradicted — live \`gh search code \"$QUERY\"\` returned hits (stale/ungrounded absence — the TagsInput trap)"
+fi
+if { [ "$VERDICT" = "implemented" ] || [ "$VERDICT" = "partial" ]; } && [ "$HITS" = 0 ]; then
+  fail "$VERDICT claimed but live \`gh search code \"$QUERY\"\` returned no match (empty positive)"
+fi
+
+echo "GATE PASS [$STORY_ID]: $VERDICT grounded — live re-run of \"$QUERY\" agrees" >&2
+exit 0
