@@ -66,12 +66,12 @@ Story tree where every story has an empty gap-analysis placeholder.
 5. **Break each Epic into Stories** small enough for a single subagent to verify in one pass (1–3 acceptance criteria, one bounded capability). User/role perspective where possible.
 6. **Suggest priority and dependencies.** P0 (blocking foundation), P1 (core), P2 (nice-to-have). Dependencies reference Story IDs.
 7. **Write the MD** to `./gap-analysis/<project>.md` (create the dir). Template below.
-8. **Hand off to phase 2** with the exact-shape instruction:
+8. **Hand off to Phase 1.5 (completeness gate), still in this session.** Phase 1.5 (populate the per-epic `#### Coverage` blocks via `om-product-manager`, then `bin/gap-checklist-gate`) runs *before* `/clear` — it edits the MD interactively. Only after the gate returns 0:
 
-   > Phase 1 complete. Saved `<full-path>`.
+   > Phase 1 + completeness gate complete. Saved `<full-path>`.
    > Next: run `/clear`, then re-invoke om-cto with: `Run gap-analysis batch phase 2 on <full-path>`
 
-**Do not start phase 2 in the same session.**
+**Do not start phase 2 in the same session, and do not `/clear` until `bin/gap-checklist-gate` returns 0.**
 
 ### MD tree template
 
@@ -85,7 +85,18 @@ sources:
 phase: 1-scoped
 total_epics: <n>
 total_stories: <n>
+coverage_categories:
+  - error-path
+  - permission-abuse
+  - concurrency
+  - nfr-multitenancy
+  - nfr-gdpr
+  - nfr-audit
 ---
+<!-- coverage_categories is the completeness checklist bin/gap-checklist-gate enforces per epic.
+     Extend it per domain when a run needs more (e.g. clinical-data-retention).
+     Do NOT put inline `#` comments on the list or on coverage lines — the gate parses
+     those literally. Use HTML comments on their own line, like this one. -->
 
 # Gap Analysis — <Project Display Name>
 
@@ -94,6 +105,16 @@ total_stories: <n>
 ## Epic 1: <Epic name>
 **Goal**: <one-sentence outcome>
 **Business value**: <why it matters to the client>
+
+#### Coverage
+<!-- Populated in Phase 1.5 by om-product-manager; checked by bin/gap-checklist-gate before Phase 2.
+     Each category is EITHER a real story ref (`Story <id>`) OR `out-of-scope: <reason>` — never blank. -->
+- error-path: Story 1.2
+- permission-abuse: out-of-scope: <reason the client confirmed>
+- concurrency: Story 1.4
+- nfr-multitenancy: Story 1.3
+- nfr-gdpr: out-of-scope: <reason>
+- nfr-audit: Story 1.5
 
 ### Story 1.1: <Story title>
 - **Description**: <as a [role], I want [capability], so that [outcome]>
@@ -120,42 +141,76 @@ Story IDs (`Epic.Story`, e.g. `2.4`) are stable — never renumber after phase 1
 
 ---
 
+## Phase 1.5 — Completeness gate (before `/clear` → Phase 2)
+
+**Why this exists.** Phase 2 verifies *whatever stories the tree contains*. A
+happy-path-only tree — "user books an appointment", nothing about double-booking,
+cancellation, permission denial, concurrency, GDPR, audit — yields a confident,
+complete-*looking* backlog that silently omits the hard 20%. Phase 1 only
+*mentions* NFRs, and a mention does **not** bind (`feedback_text_channel_does_not_bind`,
+N=17). So completeness is enforced **structurally**, the I019 gate one layer up:
+the same "structural check outside the model loop binds; prose inside it drifts."
+
+**The check is `bin/gap-checklist-gate`, not a prose reminder.** Every epic must
+address each category in the MD's `coverage_categories` list, satisfied one of
+two ways: a real `Story <id>` reference **or** `out-of-scope: <reason>`. Blank,
+reasonless, or a reference to a story not in the MD all fail.
+
+**Steps:**
+
+1. **Populate, via `om-product-manager` (delegate — do not author story-critique here).** For each epic, PM proposes the missing negative-path / NFR stories *or* the explicit `out-of-scope: <reason>` for each unaddressed category, and writes them into the epic's `#### Coverage` block (adding the stories to the tree where needed). PM *populates*; it is not what binds.
+2. **Run the gate:**
+   ```bash
+   bin/gap-checklist-gate ./gap-analysis/<project>.md
+   ```
+   - **exit 0** → every epic covers every category. Proceed to `/clear` → Phase 2.
+   - **exit 1** → at least one epic has a category in neither state (the gate prints which epic + which category). **Do not start Phase 2.** Go back to step 1 for the flagged epics.
+3. **Only on exit 0**, hand off to Phase 2.
+
+**Known limitation (scope it honestly, mirror `gap-validate-finding`).** A green
+checklist means *these declared dimensions are addressed*, **not** *the tree is
+complete*. A dimension not on the list (i18n, data-migration, observability)
+passes untouched — that is the price of decidability. You cannot enumerate every
+missing story, but you *can* decide "does each epic have a negative-path story or
+an explicit N/A per fixed category." Extend `coverage_categories` per domain when
+a run needs more; do not replace the gate with prose.
+
+---
+
 ## Phase 2 — Verification (the gated batch loop)
 
 **Goal**: for every `status: pending` story, dispatch a read-only subagent to
 investigate OM, then **gate** its findings before writing them into the MD.
 
+**Precondition:** `bin/gap-checklist-gate` returned 0 in Phase 1.5. Do not enter
+Phase 2 on a tree that has not passed the completeness gate.
+
 ### Architecture: orchestrator + subagents + gate
 
-- **You are the orchestrator.** You parse the MD, batch subagent calls, **validate each returned block through `bin/gap-validate-finding`**, edit the MD, update statuses. You do **not** explore the codebase yourself.
+- **You are the orchestrator.** You parse the MD, dispatch the investigation subagents in one message, **validate each returned block through `bin/gap-validate-finding`**, edit the MD, update statuses. You do **not** explore the codebase yourself.
 - **Subagents** are read-only investigators (one story each). They do not edit files. They propose the grounding query; they do not need to be trusted on whether they ran it.
 - **The gate** (`bin/gap-validate-finding`) is the structural surface *outside each subagent's model loop*. This is load-bearing: prose rules in a subagent prompt do **not** bind it against fabrication-shape failures (`feedback_text_channel_does_not_bind`, N=17 incl. S012; I018). `bin/claude-validated` cannot help here — it wraps `claude -p`, and these subagents run via the **Task tool**, which it does not intercept. So the binding check lives in the orchestrator's parse step. The gate must verify the *goal* (a story-grounded verdict), not a *proxy* (a query↔verdict agreement a strawman query satisfies) — S012 is exactly a gate that went green on the proxy; the `--story` token guard re-ties it to the goal.
 
 ### Steps
 
 1. **Load the MD.** Parse frontmatter + tree. List `status: pending` stories. Set `phase: 2-verifying`.
-2. **Batch pending stories into groups of 5.** Per batch:
-   1. **Dispatch 5 subagents in parallel** (single message, Task tool) using the prompt template below.
-   2. **Wait for all 5.** Each returns a findings block in the schema below.
-   3. **Gate each block — sequentially — before writing.** Write the story's
-      title + acceptance criteria to a temp file and pass it with `--story`;
-      the gate **requires** it to ground a `❌ Missing` (without the story it
-      cannot prove the grounding query references the story rather than a
-      strawman — the S012 self-confirm guard):
-      ```bash
-      printf '%s\n' "$STORY_TITLE_AND_CRITERIA" > /tmp/story-<id>.txt
-      printf '%s\n' "$BLOCK" | bin/gap-validate-finding <story-id> --story /tmp/story-<id>.txt
-      ```
-      - **exit 0 (PASS)** → write the block into the story's `#### Gap analysis`, flip `**Status**` to `done`, set `**Investigated**`.
-      - **exit 1 (FAIL)** → do **not** write. Mark `**Status**: needs-review`, re-dispatch *once* with a reinforced prompt (echo the gate's stderr reason into the retry). If it fails again, leave `needs-review` and move on. (Covers: malformed block, verdict contradicted by the live re-run, a degenerate/strawman grounding query, or a *permanent* `gh` query error.)
-      - **exit 2 (RETRY-LATER)** → `gh` was *transiently* rate-limited/unreachable. Do **not** write, do **not** treat as a verdict failure. Re-queue the story and continue; retry the queued ones after the batch.
-   4. **Report progress** briefly: "Batch N/M complete. X/Y done, Z needs-review."
-3. **Resumability**: a story already `done` at phase-2 start is skipped.
-4. **When all stories are `done` or `needs-review`**: set `phase: 3-synthesizing`, flow into Phase 3.
+2. **Dispatch all `pending` investigation subagents in one Task-tool message.** No hand-counted batching — the Task tool already bounds its own concurrency, so the old fixed-size grouping was a self-imposed cap that bought nothing. Each subagent gets one story (the prompt template below) and returns a findings block in the schema below.
+3. **Gate the returned blocks — one at a time — before writing each.** Investigation fanned out, but **grounding stays a single-`gh`-caller sequential drain** (the I019 rate invariant): validate the blocks serially, not in parallel. For each, write the story's title + acceptance criteria to a temp file and pass it with `--story`; the gate **requires** it to ground a `❌ Missing` (without the story it cannot prove the grounding query references the story rather than a strawman — the S012 self-confirm guard):
+   ```bash
+   printf '%s\n' "$STORY_TITLE_AND_CRITERIA" > /tmp/story-<id>.txt
+   printf '%s\n' "$BLOCK" | bin/gap-validate-finding <story-id> --story /tmp/story-<id>.txt
+   ```
+   - **exit 0 (PASS)** → write the block into the story's `#### Gap analysis`, flip `**Status**` to `done`, set `**Investigated**`.
+   - **exit 1 (FAIL)** → do **not** write. Mark `**Status**: needs-review`, re-dispatch *once* with a reinforced prompt (echo the gate's stderr reason into the retry). If it fails again, leave `needs-review` and move on. (Covers: malformed block, verdict contradicted by the live re-run, a degenerate/strawman grounding query, or a *permanent* `gh` query error.)
+   - **exit 2 (RETRY-LATER)** → `gh` was *transiently* rate-limited/unreachable. Do **not** write, do **not** treat as a verdict failure. Re-queue the story and continue; retry the queued ones after the rest.
+4. **Report progress** briefly: "X/Y done, Z needs-review."
+5. **Resumability**: a story already `done` at phase-2 start is skipped.
+6. **When all stories are `done` or `needs-review`**: set `phase: 3-synthesizing`, flow into Phase 3.
 
 ### Validate sequentially — this *is* the rate-limit discipline
 
-Process the 5 returned blocks through the gate **one at a time**, not in
+Investigation fans out (all subagents in one message); **validation does not.**
+Process the returned blocks through the gate **one at a time**, not in
 parallel. The gate re-runs a live `gh search code` for every `❌ Missing` and
 every non-`live` `✅/🟡`; GitHub's code-search endpoint allows ~30 req/min plus
 an undocumented secondary "abuse" limiter that trips on bursty parallel access.
@@ -386,6 +441,8 @@ The mode ships only if these pass. Tests 3 and 4 are binding.
    - *Grounding*: a `❌ Missing` block carrying a well-formed query **for a capability that exists live** → the orchestrator re-runs the query, sees hits, rejects the block. (Verified: `bin/gap-validate-finding` returns exit 1 here. This is *not* a shape check — the query is actually re-run.)
 4. **Staleness (the binding one) — assert on the persisted MD, not the subagent.** Seed a story for a capability present live but absent from the vendored snapshot. The subagent *may* return `❌ Missing` from the stale snapshot — testing its raw return tests the wrong layer. Assert on the **MD after orchestrator processing**: the gate's re-run contradicts the `no match`, so the story ends `needs-review`/re-dispatched, **never a persisted `❌ Missing`**.
 5. **Currency-regression**: `grep -E '\b(XS|XL|[0-9]+%)\b'` over backlog + summary → zero hits.
+6. **Completeness gate is structural, not prose (I024):** `bin/gap-checklist-gate docs/specs/fixtures/gap-checklist/happy-path-only.md` → **exit 1** naming the unaddressed categories; `…/complete.md` → **exit 0**. A `#### Coverage` category satisfied by a story ref to a story not in the MD, or an `out-of-scope:` with no reason, also fails — the gate checks the *goal*, not a presence proxy.
+7. **No-batch (I023):** the implementation brief's Part-1 acceptance grep (for the retired fixed-size-batch phrasings) returns zero hits over this reference; grounding is still described as a sequential single-`gh`-caller drain.
 
 If tests 3 and 4 pass, the stale-absence hole closes (the TagsInput failure mode)
 and the false-`❌` half of the I018 fabrication hole closes with it. The
@@ -395,7 +452,8 @@ here so they are not mistaken for closed.
 
 ## Cross-refs
 
-- `bin/gap-validate-finding` — the gate this mode is wired to.
+- `bin/gap-validate-finding` — the verdict-layer gate (Phase 2).
+- `bin/gap-checklist-gate` — the intake-layer completeness gate (Phase 1.5); fixtures in `docs/specs/fixtures/gap-checklist/`.
 - `references/atomic-commits.md` — the inherited currency + scope flags.
 - `references/advisory.md` §Output Contract — the contract this gate enforces structurally; line 99's vendored-`OR` is tightened here (candidate I020 would tighten advisory itself).
 - `bin/claude-validated` (I018) — the source of the five form checks (relocated into the orchestrator parse step, not the `claude -p` wrapper).

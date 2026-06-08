@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.19.0 — gap-analysis batch mode: drop the hand-rolled batching (I023) + structural completeness gate (I024)
+
+Two follow-ups to v1.18.0's batch mode, both implemented against `docs/specs/2026-06-08-i023-i024-implementation.md`. Source specs: `agents-master/improvements/I023.md`, `I024.md`. The v1.18.0 verdict gate (`bin/gap-validate-finding`) is **untouched** — these changes sit around it.
+
+### Changed — I023: delete the "batches of 5" (no framework)
+
+Phase 2 dispatched investigation subagents in hand-counted groups of 5 — a self-imposed concurrency cap the Task tool already enforces. Replaced with **dispatch all `pending` subagents in one Task-tool message**. Grounding is unchanged: still a **sequential single-`gh`-caller drain** (the I019 rate invariant — the one thing that must not regress). No `Workflow` primitive adopted: the original I023 draft proposed it but the review found two blocking facts about the primitive (`pipeline()` has no per-stage barrier so it can't serialize grounding; the Workflow script sandbox has no Bash so it can't call the gate). `Workflow` is reserved for a future unattended/headless scan only.
+
+### Added — I024: `bin/gap-checklist-gate`, a structural pre-Phase-2 completeness gate
+
+A happy-path-only story tree produced a confident, complete-*looking* backlog that silently omitted the hard 20% (error paths, permission/abuse, concurrency, NFRs). Phase 1 only *mentioned* NFRs, and a mention does not bind (`feedback_text_channel_does_not_bind`, N=17). So completeness is now enforced **structurally — the I019 gate one layer up, at the intake instead of the verdict**:
+
+- **New `bin/gap-checklist-gate <md>`** (sibling of `gap-validate-finding`, exit 0/1/2): every epic must address each category in the MD's `coverage_categories` list, satisfied by either a real `Story <id>` reference **or** `out-of-scope: <reason>`. A blank category, a reasonless `out-of-scope:`, or a reference to a story not in the MD all **fail** — the gate checks the goal, not a presence proxy. The category set is read from the MD frontmatter (extensible per domain). If that list is **absent or empty the gate fails closed (exit 1)** — a stripped or old MD must not silently bypass completeness, mirroring how `gap-validate-finding` fails closed on a missing `--story` (fixed in round review — `docs/specs/2026-06-08-i024-gate-failopen-fix.md`). The parser is literal: no inline `#` comments on `coverage_categories` / coverage lines (HTML `<!-- -->` comments are fine).
+- **New MD schema:** Phase-1 frontmatter declares `coverage_categories`; every epic carries a `#### Coverage` block the gate parses.
+- **Phase 1.5 wiring:** `om-product-manager` *populates* the coverage blocks (delegate — no story-critique logic added to the reference); `bin/gap-checklist-gate` *binds*. Phase 2 must not start, and the orchestrator must not `/clear`, until the gate returns 0.
+- **Scope honesty (mirrors `gap-validate-finding`):** a green checklist means the *declared dimensions* are addressed, not that the tree is complete. A dimension off the list (i18n, data-migration, observability) passes untouched — the price of decidability. The reference records this, and says: extend the list, don't replace the gate with prose.
+
+The single thing that would have failed review — enforcing I024 with prose instead of an exit-code gate (reintroducing the N=17 failure) — is avoided: the binding surface is the script.
+
+### Verification
+
+Fixtures in `docs/specs/fixtures/gap-checklist/`: `happy-path-only.md` → `bin/gap-checklist-gate` exit 1 (names the unaddressed categories); `complete.md` → exit 0. Part-1 grep (`groups of 5|batch into|of 5|wait for all 5`) over the reference → zero. `git diff` shows `bin/gap-validate-finding` unchanged; its REPRO1–3 + 6-block checks still pass.
+
 ## 1.18.0 — om-cto Batch Gap Analysis mode (folded from a candidate standalone skill)
 
 ### Added — a fourth om-cto mode for multi-document engagement scoping
