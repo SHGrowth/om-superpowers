@@ -85,15 +85,18 @@ sources:
 phase: 1-scoped
 total_epics: <n>
 total_stories: <n>
-coverage_categories:        # the completeness checklist bin/gap-checklist-gate enforces per epic
+coverage_categories:
   - error-path
   - permission-abuse
   - concurrency
   - nfr-multitenancy
   - nfr-gdpr
   - nfr-audit
-  # extend per domain when a run needs more (e.g. clinical-data-retention)
 ---
+<!-- coverage_categories is the completeness checklist bin/gap-checklist-gate enforces per epic.
+     Extend it per domain when a run needs more (e.g. clinical-data-retention).
+     Do NOT put inline `#` comments on the list or on coverage lines — the gate parses
+     those literally. Use HTML comments on their own line, like this one. -->
 
 # Gap Analysis — <Project Display Name>
 

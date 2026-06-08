@@ -16,12 +16,24 @@
 #   - a story reference (`Story <epic>.<n>`) that actually exists in the MD, OR
 #   - `out-of-scope: <non-empty reason>` (an explicit deferral, never silence).
 # The category set is read from the MD frontmatter `coverage_categories:` list
-# (extensible per domain); it falls back to the built-in six if not declared.
+# (extensible per domain). If that list is ABSENT or EMPTY the gate FAILS CLOSED
+# (exit 1) — completeness is unverifiable, so it must not pass. This mirrors the
+# sibling gate (bin/gap-validate-finding fails closed when its --story precondition
+# is missing); defaulting to a built-in list would let a stripped/old MD silently
+# bypass the domain's declared categories — the exact garbage-in-green-gate
+# failure this gate exists to prevent.
 #
 # Exit codes:
-#   0  PASS  — every epic covers every category (story ref or explicit out-of-scope).
-#   1  FAIL  — at least one epic has a category in neither state. Offenders printed.
+#   0  PASS  — every epic covers every declared category (story ref or explicit out-of-scope).
+#   1  FAIL  — at least one epic has a category in neither state, OR no categories
+#              are declared (precondition missing). Offenders printed.
 #   2  USAGE — bad invocation.
+#
+# Input format note: the parser is deliberately literal — do NOT put inline `#`
+# comments on the `coverage_categories:` key, its list items, or `#### Coverage`
+# lines (a `#` is parsed as content, and an inline comment on the key line hides
+# the whole list → fail-closed). HTML `<!-- ... -->` comments on their own line
+# are fine. The Phase-1 MD template follows this rule.
 #
 # Scope honesty (mirror gap-validate-finding): a green checklist means "these
 # declared dimensions are addressed," NOT "the tree is complete." A dimension
@@ -36,10 +48,8 @@ if [ -z "$MD" ] || [ ! -f "$MD" ]; then
   exit 2
 fi
 
-DEFAULT_CATS="error-path permission-abuse concurrency nfr-multitenancy nfr-gdpr nfr-audit"
-
 rc=0
-awk -v default_cats="$DEFAULT_CATS" '
+awk '
 function trim(s){ sub(/^[ \t]+/,"",s); sub(/[ \t]+$/,"",s); return s }
 BEGIN { incat=0; ncat=0 }
 # --- read declared coverage_categories from frontmatter ---
@@ -50,7 +60,13 @@ incat==1 {
 }
 { lines[NR]=$0 }
 END {
-  if (ncat==0) { ncat=split(default_cats, cats, " ") }
+  # Fail closed: a missing/empty coverage_categories list means completeness is
+  # unverifiable. Do NOT default to a built-in set — that would silently bypass
+  # the per-domain declared categories (the fail-open the round review caught).
+  if (ncat==0){
+    print "FAIL: no coverage_categories declared in frontmatter — completeness unverifiable; Phase 1.5 incomplete" > "/dev/stderr"
+    exit 1
+  }
 
   # collect existing story ids (### Story <e>.<n>)
   for (i=1;i<=NR;i++){
