@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# gap-grounding-preflight — fail fast when the gap-analysis grounding channel is
+# dead, BEFORE Phase 2 dispatches a single subagent.
+# Usage:  gap-grounding-preflight        (run at the top of Phase 2)
+#
+# Source spec: agents-master/improvements/I036.md.
+# Third sibling of bin/gap-validate-finding (I019, the verdict layer) and
+# bin/gap-checklist-gate (I024, the intake layer). This one guards the *channel*:
+# is live `gh search code` against the OM repo actually answering?
+#
+# Why it must exist (the hole I036 found by code-read, then confirmed live):
+#   The verdict gate re-runs the cited query and trusts the result. But an EMPTY
+#   `gh search code` result is AMBIGUOUS — it means EITHER "the code genuinely
+#   isn't there" OR "the channel is dead (gh unauthed / no repo access / search
+#   down / repo renamed)". `gh search code` against a nonexistent or inaccessible
+#   repo exits 0 with no output — NOT an error (verified: open-mercato/<bogus>
+#   → rc=0, empty). So the gate cannot tell the two apart from one finding: a
+#   dead channel makes every `❌ Missing` self-confirm (no hits ⇒ "missing"
+#   confirmed) and the gate PASSES a silently false all-Missing backlog. Nothing
+#   downstream catches it. Phases 1 + 1.5 never touch gh, so without this the
+#   first symptom is the whole Phase-2 fan-out grinding to needs-review (loud
+#   case) or a confident wrong backlog (silent case).
+#
+#   The only way to disambiguate an empty result is a CONTROL with a known
+#   answer: search for a term that MUST be present in a healthy, accessible OM
+#   repo. If even the control returns nothing, it's the channel, not the code.
+#
+# Exit codes (mirror the sibling gates):
+#   0  HEALTHY      — control term returned hits; grounding is live. Start Phase 2.
+#   1  DEAD/EMPTY   — gh missing, gh permanent error, OR the control returned no
+#                     hits (no access / wrong repo / search broken). DO NOT start
+#                     Phase 2 — fix the environment first.
+#   2  RETRY-LATER  — gh transiently rate-limited/unreachable. Grounding can't be
+#                     probed right now; wait and re-run the preflight.
+#
+# Scope honesty: a green preflight proves the channel answers and the repo is
+# reachable — NOT that any individual verdict is correct (that is the per-finding
+# gate's job, with its own named holes). It closes the channel-dead hole only.
+
+set -uo pipefail
+
+OM_REPO="${OM_REPO:-open-mercato/open-mercato}"
+# Control term: a string guaranteed present in a healthy OM checkout — the package
+# scope appears in imports and package.json names across the monorepo (verified:
+# 11 hits). Override per repo/grounding target.
+TERM="${GAP_PREFLIGHT_TERM:-open-mercato}"
+GH_SLEEP="${GH_SLEEP:-2.5}"   # match the verdict gate's throttle
+
+fail()  { echo "PREFLIGHT DEAD [$OM_REPO]: $1" >&2; exit 1; }
+defer() { echo "PREFLIGHT RETRY-LATER [$OM_REPO]: $1" >&2; exit 2; }
+
+command -v gh >/dev/null 2>&1 || fail "gh CLI not found on PATH — grounding is impossible without it.
+  Fix: install it (macOS: \`brew install gh\`), then \`gh auth login\`. Re-run this preflight."
+
+GH_ERRFILE="$(mktemp "${TMPDIR:-/tmp}/gap-preflight-err.XXXXXX")"
+set +e
+GH_OUT="$(gh search code --repo "$OM_REPO" --limit 3 -- "$TERM" 2>"$GH_ERRFILE")"
+GH_RC=$?
+GH_ERR="$(cat "$GH_ERRFILE" 2>/dev/null)"; rm -f "$GH_ERRFILE"
+set -e
+sleep "$GH_SLEEP"
+
+if [ $GH_RC -ne 0 ]; then
+  # transient vs permanent — same classification bin/gap-validate-finding uses.
+  if grep -qiE "rate limit|secondary rate|\b403\b|abuse|timeout|timed out|could not resolve|connection|temporar|try again|network" <<<"$GH_ERR"; then
+    defer "gh transiently unavailable ($GH_RC): $(head -1 <<<"$GH_ERR")
+  This is usually a rate limit — nothing to fix. Wait ~60s and re-run this preflight."
+  fi
+  fail "gh failed ($GH_RC): $(head -1 <<<"$GH_ERR")
+  Fix (most likely auth): run \`gh auth status\` — if not logged in, \`gh auth login\`.
+  If $OM_REPO was renamed/moved, set OM_REPO=<owner/name> and re-run. Re-run this preflight after fixing."
+fi
+
+# The load-bearing check: gh succeeded but the control term found nothing. A
+# healthy, accessible repo MUST contain it, so empty here means the channel is
+# dead — the exact state that would make every ❌ Missing self-confirm.
+if [ -z "$(tr -d '[:space:]' <<<"$GH_OUT")" ]; then
+  fail "control term \"$TERM\" returned NO hits in $OM_REPO — gh works but cannot see the repo's code, so every ❌ Missing would self-confirm into a false all-Missing backlog.
+  Fix, in order:
+    1. \`gh auth status\` — are you logged in?  If not: \`gh auth login\`.
+    2. Open https://github.com/$OM_REPO — does it exist and can you see it?
+       If it was renamed/moved, set OM_REPO=<new owner/name> and re-run.
+    3. If the repo is fine but the control word no longer appears in it,
+       set GAP_PREFLIGHT_TERM=<a string you know is in the repo> and re-run.
+  Re-run this preflight after fixing — do not start Phase 2 until it returns 0."
+fi
+
+echo "PREFLIGHT HEALTHY [$OM_REPO]: control \"$TERM\" found — grounding is live; Phase 2 may start" >&2
+exit 0

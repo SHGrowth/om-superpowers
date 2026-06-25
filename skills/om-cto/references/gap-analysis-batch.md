@@ -182,8 +182,16 @@ a run needs more; do not replace the gate with prose.
 **Goal**: for every `status: pending` story, dispatch a read-only subagent to
 investigate OM, then **gate** its findings before writing them into the MD.
 
-**Precondition:** `bin/gap-checklist-gate` returned 0 in Phase 1.5. Do not enter
-Phase 2 on a tree that has not passed the completeness gate.
+**Preconditions (both, in order):**
+1. `bin/gap-grounding-preflight` returns 0 — the live `gh search code` channel to
+   `open-mercato/open-mercato` is answering. Run it *first*; never dispatch a
+   subagent on a dead channel. A dead channel is **silent**: `gh search code`
+   against an inaccessible/renamed repo exits 0 with no output (verified), so the
+   verdict gate would let every `❌ Missing` self-confirm into a false
+   all-Missing backlog (I036). The preflight catches this with a known-present
+   control term.
+2. `bin/gap-checklist-gate` returned 0 in Phase 1.5. Do not enter Phase 2 on a
+   tree that has not passed the completeness gate.
 
 ### Architecture: orchestrator + subagents + gate
 
@@ -193,6 +201,7 @@ Phase 2 on a tree that has not passed the completeness gate.
 
 ### Steps
 
+0. **Grounding preflight — the first action in Phase 2.** Run `bin/gap-grounding-preflight`. **exit 0** → channel live, proceed. **exit 1** → grounding is dead (gh unauthed / no repo access / repo renamed / search down); **stop — dispatch nothing**, and **relay the preflight's stderr to the user verbatim** — it names the concrete fix (`gh auth login`, repo access, or setting `OM_REPO` / `GAP_PREFLIGHT_TERM`). Do not proceed until a re-run returns 0. **exit 2** → transient (rate limit); wait ~60s and re-run the preflight. One `gh` call (~3s) that converts a dead channel from "40 stories grind to needs-review, or a silent all-Missing backlog" into a single fail-fast line with a fix the user can act on (I036).
 1. **Load the MD.** Parse frontmatter + tree. List `status: pending` stories. Set `phase: 2-verifying`.
 2. **Dispatch all `pending` investigation subagents in one Task-tool message.** No hand-counted batching — the Task tool already bounds its own concurrency, so the old fixed-size grouping was a self-imposed cap that bought nothing. Each subagent gets one story (the prompt template below) and returns a findings block in the schema below.
 3. **Gate the returned blocks — one at a time — before writing each.** Investigation fanned out, but **grounding stays a single-`gh`-caller sequential drain** (the I019 rate invariant): validate the blocks serially, not in parallel. For each, write the story's title + acceptance criteria to a temp file and pass it with `--story`; the gate **requires** it to ground a `❌ Missing` (without the story it cannot prove the grounding query references the story rather than a strawman — the S012 self-confirm guard):
@@ -282,6 +291,14 @@ Net: the gate **falsifies ungrounded/stale `❌ Missing`, strawman-grounded `❌
 and empty/vendored-only `✅/🟡`** — the TagsInput failure mode plus the S012
 self-confirm, the two that matter. What remains is semantic relevance
 (hole 1) and live-`✅` shape-trust (hole 3).
+
+A fourth failure — a **dead grounding channel**, where `gh search code` answers
+empty for *everything* and every `❌ Missing` self-confirms — is not a
+per-finding hole this gate can see: an empty result is indistinguishable from a
+true absence within one finding. It is closed one step earlier by
+`bin/gap-grounding-preflight`, the Phase-2 precondition above, which probes a
+known-present control term so an empty answer proves the channel is dead, not
+the code (I036).
 
 ### Subagent prompt template
 
@@ -443,6 +460,7 @@ The mode ships only if these pass. Tests 3 and 4 are binding.
 5. **Currency-regression**: `grep -E '\b(XS|XL|[0-9]+%)\b'` over backlog + summary → zero hits.
 6. **Completeness gate is structural, not prose (I024):** `bin/gap-checklist-gate docs/specs/fixtures/gap-checklist/happy-path-only.md` → **exit 1** naming the unaddressed categories; `…/complete.md` → **exit 0**. A `#### Coverage` category satisfied by a story ref to a story not in the MD, or an `out-of-scope:` with no reason, also fails — the gate checks the *goal*, not a presence proxy.
 7. **No-batch (I023):** the implementation brief's Part-1 acceptance grep (for the retired fixed-size-batch phrasings) returns zero hits over this reference; grounding is still described as a sequential single-`gh`-caller drain.
+8. **Grounding preflight (I036) — the channel-dead guard.** `bin/gap-grounding-preflight` → **exit 0** against a reachable `open-mercato/open-mercato`. `OM_REPO=open-mercato/<bogus> bin/gap-grounding-preflight` → **exit 1** — the control term returns no hits, which is the *silent-empty* state a real `gh search code` produces for an inaccessible repo (verified: bogus repo → `rc=0` + empty output, never an error). `gh` absent from PATH → exit 1. Phase 2 must not start on a non-zero preflight.
 
 If tests 3 and 4 pass, the stale-absence hole closes (the TagsInput failure mode)
 and the false-`❌` half of the I018 fabrication hole closes with it. The
@@ -454,6 +472,7 @@ here so they are not mistaken for closed.
 
 - `bin/gap-validate-finding` — the verdict-layer gate (Phase 2).
 - `bin/gap-checklist-gate` — the intake-layer completeness gate (Phase 1.5); fixtures in `docs/specs/fixtures/gap-checklist/`.
+- `bin/gap-grounding-preflight` — the channel-layer preflight (Phase 2 precondition); fails fast on a dead `gh search code` channel before any subagent runs (I036).
 - `references/atomic-commits.md` — the inherited currency + scope flags.
 - `references/advisory.md` §Output Contract — the contract this gate enforces structurally; line 99's vendored-`OR` is tightened here (candidate I020 would tighten advisory itself).
 - `bin/claude-validated` (I018) — the source of the five form checks (relocated into the orchestrator parse step, not the `claude -p` wrapper).

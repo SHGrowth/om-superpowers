@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.20.0 — gap-analysis batch mode: channel-layer grounding preflight (I036)
+
+A third structural gate for the batch mode, alongside the verdict gate (`gap-validate-finding`, I019) and the intake gate (`gap-checklist-gate`, I024). Source spec: `agents-master/improvements/I036.md`. The two existing gates are **untouched**.
+
+### Added — `bin/gap-grounding-preflight`, run before Phase 2 dispatches anything
+
+The verdict gate re-runs each cited `gh search code` query and trusts the result. But an **empty** result is ambiguous — it means *either* "the code genuinely isn't there" *or* "the channel is dead" (gh unauthed / no repo access / repo renamed / search down). `gh search code` against an inaccessible or nonexistent repo **exits 0 with no output** — not an error (verified: `open-mercato/<bogus>` → `rc=0`, empty). So a dead channel makes every `❌ Missing` self-confirm (no hits ⇒ "missing" confirmed) and the gate **passes a silently false all-Missing backlog**. Nothing downstream catches it. Phases 1 + 1.5 never touch `gh`, so without a preflight the first symptom is the whole Phase-2 fan-out grinding to `needs-review` (loud case) or a confident wrong backlog (silent case).
+
+- **New `bin/gap-grounding-preflight`** (sibling of the two gates, exit 0/1/2): probes `gh search code` against `open-mercato/open-mercato` with a **known-present control term** (`open-mercato`, overridable via `GAP_PREFLIGHT_TERM`). **exit 0** = control found, channel live; **exit 1** = gh missing/permanent-error, or the control returned no hits (the dead-channel state); **exit 2** = transient (rate-limit) → wait and re-run. The control term is the load-bearing idea: an empty answer to a query whose answer is *known* to be non-empty proves the channel is dead, not the code — the one thing the per-finding gate structurally cannot tell.
+- **Phase-2 wiring:** the preflight is now the first action in Phase 2 and a hard precondition (alongside the Phase-1.5 completeness gate). Phase 2 dispatches nothing on a non-zero preflight.
+- **Actionable on failure:** every non-zero exit prints the concrete fix for the cause it hit (`gh auth login`; check repo visibility; set `OM_REPO` if renamed; set `GAP_PREFLIGHT_TERM` if the control word changed; transient → wait ~60s). Phase 2's Step 0 tells the orchestrator to relay that stderr to the user verbatim — detection without a next command is useless to the human running the skill.
+- **Scope honesty (mirrors the sibling gates):** a green preflight proves the channel answers and the repo is reachable — not that any individual verdict is correct (that stays the per-finding gate's job, with its own named holes).
+
+### Verification
+
+`bin/gap-grounding-preflight` → exit 0 against the real repo; `OM_REPO=open-mercato/<bogus> bin/gap-grounding-preflight` → exit 1 (control returns no hits — the silent-empty case); `gh` absent from PATH → exit 1. All three verified live. The two existing gates' diffs are empty.
+
 ## 1.19.0 — gap-analysis batch mode: drop the hand-rolled batching (I023) + structural completeness gate (I024)
 
 Two follow-ups to v1.18.0's batch mode, both implemented against `docs/specs/2026-06-08-i023-i024-implementation.md`. Source specs: `agents-master/improvements/I023.md`, `I024.md`. The v1.18.0 verdict gate (`bin/gap-validate-finding`) is **untouched** — these changes sit around it.
