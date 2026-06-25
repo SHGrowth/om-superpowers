@@ -42,7 +42,10 @@ jobs:
       - name: Bump patch version
         if: steps.changes.outputs.changed == 'true'
         run: |
-          CURRENT=$(jq -r '.version' package.json)
+          # Derive the bump from the canonical manifest, NOT package.json — the
+          # latter has drifted in the past (sat at 1.8.0 while the plugin shipped
+          # 1.20.0), and reading it here would have rolled the real version back.
+          CURRENT=$(jq -r '.version' .claude-plugin/plugin.json)
           IFS='.' read -r major minor patch <<< "$CURRENT"
           NEW_VERSION="${major}.${minor}.$((patch + 1))"
 

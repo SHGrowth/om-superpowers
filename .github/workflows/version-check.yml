@@ -1,0 +1,19 @@
+name: Version consistency
+
+# Catch the drift that v1.18–1.20 hit: a manual `chore(release):` commit that
+# bumps the .claude-plugin manifests but forgets package.json (or the skill-count
+# phrasing). The canonical version lives in .claude-plugin/plugin.json; this fails
+# the build if package.json / marketplace.json / README disagree.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check version + skill-count consistency
+        run: bash scripts/check-version-sync.sh
