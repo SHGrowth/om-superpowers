@@ -2,6 +2,42 @@
 
 `@open-mercato/core` contains all core business modules (auth, catalog, customers, sales, etc.). This guide covers the full extensibility contract and module development patterns.
 
+## Always
+
+- Preserve auto-discovery contracts for module files, API routes, pages, subscribers, workers, widgets, and generated registries.
+- Export `openApi` from every API route file.
+- Use `makeCrudRoute` with `indexer: { entityType }` for CRUD routes that should participate in query indexing.
+- Wire custom write routes through the mutation guard contract.
+- Use declarative feature guards and add new `acl.ts` features to `setup.ts` `defaultRoleFeatures`.
+- Use `findWithDecryption` / `findOneWithDecryption` for encrypted entities.
+- Implement domain writes through commands so audit, undo, cache, events, and indexing stay consistent.
+- Run `yarn generate` after changing module files discovered by the generator.
+
+## Ask First
+
+- Ask before changing any contract surface from `BACKWARD_COMPATIBILITY.md`: auto-discovery, public types, import paths, event IDs, widget spot IDs, API URLs, DB schema, DI names, ACL features, notification IDs, CLI commands, or generated file contracts.
+- Ask before moving versioned generated files or changing where generated registries live.
+- Ask before applying migrations with `yarn db:migrate`; normal PRs should include migration files and snapshots.
+
+## Never
+
+- Never create direct ORM relationships between modules; use foreign key IDs and fetch separately.
+- Never expose cross-tenant data or omit tenant/organization scoping.
+- Never hand-edit generated files.
+- Never import generated app bootstrap files from packages.
+- Never run raw `em.find` / `em.findOne` between scalar mutations and `em.flush()` on the same `EntityManager` without `withAtomicFlush`.
+- Never hand-roll AES/KMS encryption or bypass `TenantDataEncryptionService`.
+- Never compare raw feature arrays with exact string checks when wildcard grants apply.
+
+## Validation Commands
+
+```bash
+yarn db:generate
+yarn generate
+yarn workspace @open-mercato/core build
+yarn workspace @open-mercato/core test
+```
+
 ## Core Modules
 
 | Module | Path | Description |
@@ -41,6 +77,32 @@ All module paths use `src/modules/<module>/` as shorthand.
 - Subscribers: `subscribers/*.ts` — export default handler + `metadata` with `{ event: string, persistent?: boolean, id?: string }`
 - Workers: `workers/*.ts` — export default handler + `metadata` with `{ queue: string, id?: string, concurrency?: number }`
 
+### Portal Pages (Frontend sub-convention)
+
+Customer portal pages live under the standard frontend tree with a required `[orgSlug]` segment:
+
+- `frontend/[orgSlug]/portal/<path>/page.tsx` → `/{orgSlug}/portal/<path>`
+- `[orgSlug]` MUST be the first segment — portal auth, tenant resolution, and the portal shell all assume this shape
+- Any third-party module can contribute portal pages this way; the `(frontend)` catch-all handles the route
+
+Portal pages MUST ship a sibling `page.meta.ts` (see [packages/ui/AGENTS.md → Portal Extension](../ui/AGENTS.md)). That file:
+- Declares `requireCustomerAuth` / `requireCustomerFeatures` — enforced server-side by the `(frontend)` catch-all via `CustomerRbacService`
+- Optionally declares a `nav` block — when present, the page is auto-listed in the portal sidebar by `/api/customer_accounts/portal/nav` (RBAC-filtered)
+
+Example:
+```typescript
+// frontend/[orgSlug]/portal/orders/page.meta.ts
+import type { PageMetadata } from '@open-mercato/shared/modules/registry'
+
+export const metadata: PageMetadata = {
+  requireCustomerAuth: true,
+  requireCustomerFeatures: ['portal.orders.view'],
+  nav: { label: 'Orders', labelKey: 'orders.nav.title', group: 'main', order: 20 },
+}
+```
+
+Granting the feature to a customer role is sufficient for the entry to appear — no separate menu-injection widget is required. For pages without a sidebar entry (detail/create/edit), omit the `nav` block. For external links without a backing page, use `usePortalInjectedMenuItems` widgets instead.
+
 ### Page Metadata
 
 - Prefer colocated `page.meta.ts`, `<name>.meta.ts`, or folder `meta.ts`
@@ -50,9 +112,11 @@ All module paths use `src/modules/<module>/` as shorthand.
 
 All API route files MUST export an `openApi` object for automatic API documentation generation.
 
-For custom write routes that do not use `makeCrudRoute` (`POST`/`PUT`/`PATCH`/`DELETE`), MUST wire the mutation guard contract:
-- call `validateCrudMutationGuard` before mutation logic
-- call `runCrudMutationGuardAfterSuccess` after successful mutation when requested
+For custom write routes that do not use `makeCrudRoute` (`POST`/`PUT`/`PATCH`/`DELETE`), MUST wire the mutation guard registry:
+- map the route to the closest registry operation (`create`, `update`, or `delete`; state-changing action endpoints usually use `update`)
+- collect registered guards with `getAllMutationGuardInstances()` and append `bridgeLegacyGuard(container)` when present
+- call `runMutationGuards(...)` from `@open-mercato/shared/lib/crud/mutation-guard-registry` before mutation logic, passing the caller's granted features as `{ userFeatures }`
+- return `guardResult.errorBody` / `guardResult.errorStatus` when blocked, merge `guardResult.modifiedPayload` back into validated input when present, and run each returned `afterSuccessCallbacks` item after a successful mutation, catching/logging callback failures so committed writes still return successfully
 
 ### CRUD Routes
 
@@ -96,6 +160,19 @@ Follow the customers module API patterns (CRUD factory + query engine):
 - Set `indexer: { entityType }` in `makeCrudRoute`
 - Reference: `src/modules/customers/api/people/route.ts`
 
+### Entity Schema And Migration Workflow
+
+When adding or changing a MikroORM entity, coding agents MUST read this section, the customers reference module guide, and `packages/cli/AGENTS.md` before editing.
+
+1. Update `data/entities.ts` using MikroORM v7 imports: decorators from `@mikro-orm/decorators/legacy`, types from `@mikro-orm/core`.
+2. Run `yarn generate` when module structure or entity discovery changed.
+3. Treat `yarn db:generate` as a schema-diff probe. Review every generated file before keeping it.
+4. Keep only SQL for the intended module/entity change. If the generator emits unrelated migrations because another module's snapshot is stale, remove those files from the diff instead of committing them.
+5. If you author a scoped SQL migration yourself to avoid unrelated generated churn, base it on the entity metadata and existing module migration style, then update that module's `migrations/.snapshot-open-mercato.json` to the post-change schema in the same commit.
+6. Do not run `yarn db:migrate` unless the user explicitly asks to apply migrations. PRs should normally contain the migration file and snapshot, not local DB state.
+
+For new CRUD modules, use `packages/core/src/modules/customers/AGENTS.md` as the file-structure reference and copy the command/API patterns before inventing new ones.
+
 ## Module Setup Convention
 
 Every module participating in tenant initialization must declare `setup.ts`. The generator auto-discovers these files.
@@ -135,7 +212,7 @@ export default setup
 | `onTenantCreated` | Inside `setupInitialTenant()` | Always | Settings rows, sequences, config |
 | `seedDefaults` | During init/onboarding | Always | Dictionaries, tax rates, statuses |
 | `seedExamples` | During init/onboarding | Skipped with `--no-examples` | Demo data |
-| `defaultRoleFeatures` | Declarative, merged during `ensureDefaultRoleAcls()` | Always | Role ACL features |
+| `defaultRoleFeatures` | Declarative, merged during `ensureDefaultRoleAcls()` and `yarn mercato auth sync-role-acls` | Always | Role ACL features |
 
 ### Decoupling Rules
 
@@ -144,6 +221,28 @@ export default setup
 3. Access entity IDs with optional chaining: `(E as any).catalog?.catalog_product`
 4. Use `getEntityIds()` at runtime (not import-time) for cross-module lookups
 5. Integration provider packages that need bootstrap credentials or mappings SHOULD preconfigure themselves from env inside the provider module via `setup.ts` and provider-local helpers/CLI. Do not add provider-specific env bootstrapping to core setup orchestration.
+
+### Cross-Module Coupling
+
+When one module needs another, pick the sanctioned mechanism by use-case:
+
+- **Events** for write side-effects — the source module emits (`createModuleEvents`), the other module subscribes (`subscribers/`). See § Events.
+- **Widget injection + response enrichers** for read/UI — render another module's data without importing it. See § Widget Injection, § Response Enrichers.
+- **FK-id + snapshot** for data — reference by UUID and denormalize a snapshot so reads survive the source module being absent or changed. See § Database Entities, § Extensions.
+
+Optional integration (e.g. CRM deals optionally adjusting WMS stock): the **optional consumer** owns the glue (subscriber / enricher / widget) and resolves the peer's service inside a `try/catch` — a per-module local `tryResolve` helper that wraps `container.resolve()` and returns `undefined` when the peer is absent (see `inbox_ops/subscribers/extractionWorker.ts`, `shipping_carriers/api/webhook/[provider]/route.ts`) — then no-ops or degrades gracefully. Never declare a hard `requires` on an optional peer and never call an unconditional `container.resolve(...)` for it. The upstream/depended-on module MUST NOT import, resolve, or hard-require the consumer — inverting that direction breaks the upstream module's isomorphism.
+
+The cross-module ORM-relation and direct-business-logic-import bans already live at line 24 and root `AGENTS.md` § Architecture — do not restate them. Verify absent-module behavior with `packages/core/src/__tests__/module-decoupling.test.ts` (§ Testing with Disabled Modules).
+
+### ACL Grant Sync
+
+When adding features to `acl.ts`, also add them to `setup.ts` `defaultRoleFeatures` for `admin` and any other default roles that should see the module immediately (for example `employee`, portal/customer roles, or module-specific custom roles). Then run the idempotent sync command so existing tenants receive the new grants:
+
+```bash
+yarn mercato auth sync-role-acls
+```
+
+Do this automatically unless the user explicitly asks to leave role ACLs untouched. New tenants get `defaultRoleFeatures` during setup; existing tenants only receive newly declared grants after the sync command. Use `--tenant <tenantId>` only when the user asks to target one tenant.
 
 ### Testing with Disabled Modules
 
@@ -185,6 +284,20 @@ Event fields: `id` (required), `label` (required), `description`, `category` (`c
 MUST use `as const` — provides compile-time safety; undeclared events trigger TypeScript errors and runtime warnings.
 
 Run `yarn generate` after creating/modifying `events.ts` files.
+
+## Operation Progress
+
+Use the progress module for every user-visible bulk operation and every future long-running operation. Read `packages/core/src/modules/progress/AGENTS.md` before adding selected-row actions, import/export jobs, reindexing flows, external sync operations, or queued destructive work.
+
+MUST rules:
+
+1. **MUST create a `ProgressJob`** for server-side bulk or long-running work — return `progressJobId` to the UI so `ProgressTopBar` can track it.
+2. **MUST use `@open-mercato/queue` workers** for work that should continue after navigation or retry after process failure.
+3. **MUST execute domain mutations through commands** from workers — do not bypass audit, undo, cache invalidation, or events with direct ORM mutation loops.
+4. **MUST scope progress jobs and worker payloads** with `tenantId` and `organizationId`.
+5. **MUST use shared UI progress helpers** for browser-bound DataTable bulk loops; do not build page-local progress banners.
+
+Reference implementation: `packages/core/src/modules/catalog/api/bulk-delete/route.ts`, `packages/core/src/modules/catalog/workers/catalog-product-bulk-delete.ts`, and `packages/core/src/modules/catalog/lib/bulkDelete.ts`.
 
 ## Translatable Fields
 
@@ -279,6 +392,8 @@ DataTable deep-extension surfaces:
 - `data-table:<tableId>:row-actions`
 - `data-table:<tableId>:bulk-actions`
 - `data-table:<tableId>:filters`
+- `data-table:<tableId>:toolbar` — right-side actions row (Refresh, Filters, Columns, Export). Renders on the same row as the title; full-sized buttons.
+- `data-table:<tableId>:search-trailing` — adjacent to the search input on the FilterBar row. Reserve for **compact triggers** (AI assistants, saved-view shortcuts). Suppressed when the host DataTable has no search input. Use `Button variant="outline"` (default size, h-9, `rounded-md`) with a single leading icon plus a short caption (e.g. `AI`) so the trigger matches the search input's `h-9` row height and the toolbar's standard rounded-rectangle button radius.
 
 CrudForm field-injection surface:
 - `crud-form:<entityId>:fields`
@@ -322,9 +437,29 @@ Always reference generated ids (`E.<module>.<entity>`) so system entities stay a
 
 ### Helpers
 
-- **Shared helpers**: `splitCustomFieldPayload`, `normalizeCustomFieldValues`, `normalizeCustomFieldResponse` from `@open-mercato/shared`
+- **Shared helpers**: `splitCustomFieldPayload`, `normalizeCustomFieldValues`, `normalizeCustomFieldResponse`, `applyCustomFieldsNormalization` from `@open-mercato/shared`
 - **Form collection**: `collectCustomFieldValues()` from `@open-mercato/ui/backend/utils/customFieldValues`
 - **Command undo**: capture custom field snapshots in `before`/`after` payloads (`snapshot.custom`), restore via `buildCustomFieldResetMap(before.custom, after.custom)`
+
+### Response Shape
+
+`makeCrudRoute` already extracts custom field values into `customValues` (bare keys, e.g. `{ priority: 3 }`) and `customFields` (definition array) when `list.decorateCustomFields` is configured.
+
+To opt into the canonical single-source response shape (no top-level `cf_*`/`cf:*` redundancy — the standardization requested in #1769), set `stripPrefixedKeys: true`:
+
+```typescript
+list: {
+  // ...
+  decorateCustomFields: {
+    entityIds: E.example.todo,
+    stripPrefixedKeys: true,
+  },
+}
+```
+
+For non-CRUD routes (custom detail GETs, ad-hoc handlers), call `applyCustomFieldsNormalization(record, decorated, { stripPrefixedKeys: true })` to get the same shape.
+
+The flag is opt-in to keep the existing wire format stable for callers that read `cf_*` from the top level — turn it on for new modules and migrate existing modules deliberately, with a deprecation note for any external consumer that still reads the prefixed keys.
 
 ### DSL Helpers
 
@@ -385,7 +520,7 @@ When adding features to `acl.ts`, also add them to `setup.ts` `defaultRoleFeatur
 
 ## Entity Update Safety — `withAtomicFlush`
 
-MikroORM's identity-map and subscriber infrastructure can silently discard pending scalar changes when a query (`em.find`, `em.findOne`, etc.) runs on the same `EntityManager` before an explicit `em.flush()`. Additionally, multiple `em.flush()` calls without transaction wrapping risk partial commits. See [SPEC-018](../../.ai/specs/SPEC-018-2026-02-05-safe-entity-flush.md) for the full analysis.
+MikroORM's identity-map and subscriber infrastructure can silently discard pending scalar changes when a query (`em.find`, `em.findOne`, etc.) runs on the same `EntityManager` before an explicit `em.flush()`. Additionally, multiple `em.flush()` calls without transaction wrapping risk partial commits. See [SPEC-018](../../.ai/specs/implemented/SPEC-018-2026-02-05-safe-entity-flush.md) for the full analysis.
 
 ### Rules
 
@@ -397,7 +532,12 @@ MikroORM's identity-map and subscriber infrastructure can silently discard pendi
 - Enable `{ transaction: true }` when atomicity matters (all-or-nothing semantics).
 - Keep `emitCrudSideEffects` / `emitCrudUndoSideEffects` calls **OUTSIDE** `withAtomicFlush`
   — side effects should only fire after the DB changes are committed.
+- Cache invalidation follows the same rule as side effects: invalidate **after** the DB write commits, never inside the `withAtomicFlush` block. For the opt-in always-consistent read-projection tail (`OM_CACHE_SAFETY_ALWAYS_CONSISTENT`, default OFF) see `.ai/specs/2026-06-05-cache-safety-always-consistent.md`.
 - This applies to **both** `execute` methods (update commands) and `undo` handlers.
+
+### Commit-boundary guarantee (defense in depth)
+
+`withAtomicFlush` flushes after **each** phase, then runs a final **pending-changes guard** before the transaction commits: it re-checks the `UnitOfWork` and, if any change set still lingers (a phase mutated a managed entity after its own flush boundary), flushes it defensively inside the same transaction and logs a dev warning naming `options.label`. The transaction therefore can never commit unflushed scalar work — even if a per-phase flush was missed. Pass `{ label: '<module>.<command>' }` so the warning is actionable. The guard is a safety net, **not** a license to interleave mutate→read in one phase: structure phases correctly; let the guard catch only genuine slips.
 
 ### Wrong
 
@@ -426,6 +566,37 @@ await withAtomicFlush(em, [
 await emitCrudSideEffects({ ... })
 ```
 
+### Preferred: `runCrudCommandWrite` for entity + custom fields + side effects
+
+For commands that write an entity, optionally write custom fields, and emit CRUD/index side effects in one logical operation, prefer `runCrudCommandWrite` over composing `withAtomicFlush` + `setCustomFieldsIfAny` + `emitCrudSideEffects` by hand. The helper owns the EM fork, the atomic flush boundary, the custom-field write, and the side-effect queue in the only correct order, and fails closed if any earlier step throws.
+
+```typescript
+import { runCrudCommandWrite } from '@open-mercato/shared/lib/commands/runCrudCommandWrite'
+
+await runCrudCommandWrite({
+  ctx,
+  entityId: 'my_module:my_entity',
+  action: 'updated',
+  scope: { tenantId: record.tenantId, organizationId: record.organizationId },
+  customFields: custom,
+  events: myCrudEvents,
+  indexer: myCrudIndexer,
+  sideEffect: () => ({
+    entity: record,
+    identifiers: { id: record.id, tenantId: record.tenantId, organizationId: record.organizationId },
+  }),
+  phases: [
+    () => {
+      record.name = parsed.name
+      record.status = parsed.status
+    },
+    () => syncEntityTags(em, record, parsed.tags),
+  ],
+})
+```
+
+Reference migration: `customers.deals.update` in `packages/core/src/modules/customers/commands/deals.ts`. Keep `withAtomicFlush` for cases the helper doesn't fit (multiple separate transactions per command, etc.).
+
 ## Profiling
 
 - Enable with `OM_PROFILE` env (comma-separated filters: `*`, `all`, `customers.*`, etc.)
@@ -437,7 +608,8 @@ await emitCrudSideEffects({ ... })
 - Module-scoped with MikroORM: files live in `src/modules/<module>/migrations/`
 - Generate: `yarn db:generate` (iterates all modules)
 - Apply: `yarn db:migrate` (ordered, directory first)
-- **Never hand-write migration files.** Update ORM entities, let `yarn db:generate` emit SQL.
+- Default: update ORM entities and let `yarn db:generate` emit SQL.
+- Exception: when generated output includes unrelated snapshot drift, keep or write only the intended SQL and update that module's `.snapshot-open-mercato.json` in the same change.
 
 ## Database Entities
 
@@ -445,6 +617,7 @@ await emitCrudSideEffects({ ... })
 - Tables: plural snake_case; prefer `<module>_` prefixes for module-owned tables (e.g., `catalog_products`, `sales_orders`)
 - UUID PKs, explicit FKs, junction tables for M2M
 - Include `deleted_at timestamptz null` for soft delete
+- **User-editable entities MUST include an `updated_at` column** so OSS optimistic locking (default ON) can function — without it `CrudForm`'s auto-derive silently no-ops and concurrent edits are lost. Use `@Property({ name: 'updated_at', type: Date, onCreate: () => new Date(), onUpdate: () => new Date(), nullable: true })`, and make the entity's list/detail CRUD responses return `updatedAt`. The `optimistic-lock-editable-entities.test.ts` guard fails if a curated editable entity drops the column. Append-only logs, junction/assignment tables, session/token rows, background-job rows, and sub-resource lines guarded by a parent aggregate are exempt.
 
 ## Generated Files
 
@@ -484,6 +657,7 @@ const myEnricher: ResponseEnricher = {
   timeout: 2000,                         // ms, default 2000
   fallback: { _mymodule: { count: 0 } },// returned on failure
   critical: false,                       // true = error propagates to client
+  cacheableOnListHit: false,             // see "List cache behavior" below (default false)
   async enrichOne(record, context) {
     // Add fields to a single record
     return { ...record, _mymodule: { count: 42 } }
@@ -507,11 +681,20 @@ const crud = makeCrudRoute({
 })
 ```
 
-### Key Rules
+### List cache behavior (`cacheableOnListHit`)
+
+When the opt-in CRUD list cache (`ENABLE_CRUD_API_CACHE`) is enabled, the factory stores the **enriched** list payload and partitions cache entries by the active-enricher signature (the ACL/tenant-filtered enricher ids for the caller). On a cache hit it must decide whether to re-run enrichers or serve the stored enriched fields directly:
+
+- The cache-hit path **skips re-running enrichers only when every active enricher opted in with `cacheableOnListHit: true`** (record-pure cohort). Otherwise it re-runs all active enrichers on a hit and the cache stores the base (pre-enrichment) payload.
+- Set `cacheableOnListHit: true` **only** when the enricher's output for a record is a pure function of that record's own cached state and is invalidated together with it (e.g. fields derived from the same module's own per-record data). The shipped `example.customer-todo-count` enricher keeps the default `false`: it reads other modules' tables (todos and per-customer priority) the list cache does not invalidate on, so it must re-run on every hit.
+- Leave it `false` (the fail-closed default) for any enricher whose output depends on data the list cache does not invalidate on: cross-module / cross-entity reads (e.g. a product image fetched for a sales line), wall-clock-relative values (e.g. "days in stage"), or aggregates over other tables. These MUST re-run on every request so the response reflects current data.
+
+### Response Enricher Rules
 
 - MUST implement `enrichMany()` for batch endpoints (prevents N+1 queries)
 - MUST namespace enriched fields with `_moduleName` prefix (e.g. `_example.todoCount`)
 - MUST use `features` array for ACL gating — enricher runs only if user has all listed features
+- MUST keep `cacheableOnListHit` at `false` (default) unless the enriched output is record-pure and invalidated with the host record — opting in on a cross-module/time-relative enricher serves stale data from the shared list cache
 - Export fields are stripped: `_meta` and `_`-prefixed fields are removed from CSV/Excel exports
 - Enrichers run after `CrudHooks.afterList`, before HTTP response serialization
 - `critical: true` propagates errors to the HTTP response; `false` (default) uses fallback silently
@@ -520,3 +703,11 @@ const crud = makeCrudRoute({
 ## Upgrade Actions
 
 Declare once per version in `src/modules/configs/lib/upgrade-actions.ts`. Keep them idempotent, reuse module helpers. Access guarded by `configs.manage`.
+
+## Module Config (tenant scope)
+
+`ModuleConfigService` (`src/modules/configs/lib/module-config-service.ts`) stores per-module key/value config in `module_configs`. Every method accepts an **optional** `scope: { tenantId?; organizationId? }`:
+
+- **Reads** with a `tenantId` resolve scoped row → global row (`tenant_id IS NULL`) → not found; the returned record carries `source: 'tenant' | 'instance'`. Reads without a scope read the global row (unchanged legacy behavior).
+- **Writes** with a `tenantId` create/update only that tenant's row and never touch the global row; writes without a scope update the global/instance row.
+- Always derive `tenantId` from the authenticated context, never from request input. Omit `scope` for genuinely instance-global config so existing callers are unaffected (the no-scope path is byte-for-byte the prior behavior). `module_configs` uses partial unique indexes (global `WHERE tenant_id IS NULL`, scoped `WHERE tenant_id IS NOT NULL`) — never reintroduce a single `(module_id, name)` unique constraint.
