@@ -2,82 +2,132 @@
 
 Leverage the module system and follow strict naming and coding conventions to keep the system consistent and safe to extend.
 
-## Before Writing Code
+> **Instruction budget:** this file must stay under **32,768 bytes** (Codex's default
+> `project_doc_max_bytes`, shared with the nested `AGENTS.md` files below it) — anything past
+> that byte offset never reaches the agent. Keep hard rules and routing here, put long-form
+> procedure in `.ai/docs/*`, and run `yarn agents:check-budget`. See
+> [`.ai/docs/agent-instructions.md`](.ai/docs/agent-instructions.md).
 
-1. Check the Task Router below — a single task may match multiple rows; read **all** relevant guides.
-2. Check `.ai/specs/` and `.ai/specs/enterprise/` for existing specs on the module you're modifying
-3. Enter plan mode for non-trivial tasks (3+ steps or architectural decisions)
-4. Identify the reference module (customers) if building CRUD features
+## Always
+
+- Check the Task Router below before research or coding; a single task may match multiple rows, and all relevant guides apply.
+- Check `.ai/specs/` and `.ai/specs/enterprise/` for existing specs before modifying a module.
+- Enter plan mode for non-trivial tasks with 3+ steps or architectural decisions.
+- Identify the reference module (`customers`) when building CRUD features.
+- Preserve behavior unless the user or a spec explicitly asks for a behavior change.
+- Keep changes minimal, focused, and integrated through real call sites.
+- Use the closest package/module `AGENTS.md` for local architecture, imports, and validation commands.
+- Follow `BACKWARD_COMPATIBILITY.md` before touching any contract surface.
+- Run `yarn generate` after adding or modifying module files that rely on auto-discovery.
+- Support optimistic locking on every NEW user-editable entity and edit/delete form (it is **default ON**): give the entity an `updated_at` column, return `updatedAt` in its list/detail API responses, and let `CrudForm` auto-derive the header from `initialValues.updatedAt` (covers update **and** delete) — or, for custom non-`CrudForm` handlers, wrap the mutating call with `withScopedApiRequestHeaders(buildOptimisticLockHeader(record.updatedAt), …)` and surface conflicts via `surfaceRecordConflict(err, t)`. When a form's `onSubmit` mutates OTHER entities, override the parent header per child with that child's own version (avoid false 409s). Details: the Task Router row.
+
+## Ask First
+
+- Ask before reducing scope, changing architecture, changing public contracts, adding production dependencies, or touching multiple modules in a way not covered by an existing spec.
+- Ask before changing branch/PR automation, pipeline labels, QA flow, release behavior, or external official-module submodule pointers.
+- Ask before applying database migrations locally with `yarn db:migrate`; normal PRs should include migration files and snapshots.
+- Ask before introducing provider-specific preconfiguration outside the provider package.
+- Ask before an automated PR touches design-system governance files (see [pr-workflow](.ai/docs/pr-workflow.md)).
+
+## Never
+
+- Never expose cross-tenant data or skip tenant/organization scoping.
+- Never edit generated files by hand.
+- Never add code directly under `apps/mercato/src/` except committed, typed `*.generated.ts` registries described below.
+- Never create direct ORM relationships between modules.
+- Never bypass mutation guards, command side effects, encryption helpers, RBAC wildcard matching, or shared UI data-call helpers.
+- Never hard-code user-facing strings or design-system status colors.
+- Never commit credentials, raw tokens, private keys, local-only ops files, or fork-only infrastructure notes into upstream-friendly branches.
+
+## Validation Commands
+
+Choose the smallest relevant set for the change:
+
+```bash
+yarn generate
+yarn build:packages
+yarn typecheck
+yarn lint
+yarn test
+yarn build:app
+```
+
+The full CI-mirroring gate (used by review/automation skills) is the ordered `validation.commands` list in `.ai/agentic.config.json`.
+
+**Where to run them:** decide once per gate sequence — Docker mode when a compose `app` container is running (then `yarn X` becomes `node scripts/docker-exec.mjs X`), otherwise local mode — and record the chosen runner in your output. Probe order and exact rules: [`.ai/docs/agent-instructions.md`](.ai/docs/agent-instructions.md).
 
 ## Task Router — Where to Find Detailed Guidance
 
-IMPORTANT: Before any research or coding, match the task to the root `AGENTS.md` Task Router table. A single task often maps to **multiple rows** — for example, "add a new module with search" requires both the Module Development and Search guides. Read **all** matching guides before starting. They contain the imports, patterns, and constraints you need. Only use Explore agents for topics not covered by any existing AGENTS.md.
+IMPORTANT: Before any research or coding, match the task to this table. A single task often maps to **multiple rows** — "add a new module with search" needs both the Module Development and Search guides. Read **all** matching guides first; they carry the imports, patterns and constraints you need. Only use Explore agents for topics no AGENTS.md covers.
+
+Guide shorthand: `<pkg>` = `packages/<pkg>/AGENTS.md` (so `core` = `packages/core/AGENTS.md`, `ui` = `packages/ui/AGENTS.md`), `core:<module>` = `packages/core/src/modules/<module>/AGENTS.md`, `ui:backend` = `packages/ui/src/backend/AGENTS.md`. `→ Section` names the heading to read inside that file.
 
 | Task | Guide |
 |------|-------|
 | **Module Development** | |
-| Creating a new module, scaffolding module files, auto-discovery paths | `packages/core/AGENTS.md` |
-| Building CRUD API routes, adding OpenAPI specs, using `makeCrudRoute`, query engine integration | `packages/core/AGENTS.md` → API Routes |
-| Adding `setup.ts` for tenant init, declaring role features, seeding defaults/examples | `packages/core/AGENTS.md` → Module Setup |
-| Declaring typed events with `createModuleEvents`, emitting CRUD/lifecycle events, adding event subscribers | `packages/core/AGENTS.md` → Events |
-| Adding in-app notifications, subscriber-based alerts, writing notification renderers | `packages/core/AGENTS.md` → Notifications |
-| Adding reactive notification handlers (`notifications.handlers.ts`), `useNotificationEffect`, auto side-effects on notification arrival | `packages/core/AGENTS.md` → Notifications + `packages/ui/AGENTS.md` |
-| Injecting UI widgets into other modules, defining spot IDs, cross-module UI extensions | `packages/core/AGENTS.md` → Widgets |
-| Building headless injection widgets (menu items, columns, fields), using `InjectionPosition`, or `useInjectionDataWidgets` | `packages/core/AGENTS.md` → Widget Injection + `packages/ui/AGENTS.md` |
-| Injecting menu items into main/settings/profile sidebars or topbar/profile dropdown (`useInjectedMenuItems`, `mergeMenuItems`) | `packages/ui/AGENTS.md` |
-| Adding API route interceptors (`api/interceptors.ts`, before/after hooks, body/query rewrite contracts) | `packages/core/AGENTS.md` → API Interceptors |
-| Adding DataTable extension widgets (columns/row actions/bulk actions/filters) | `packages/core/AGENTS.md` → Widget Injection + `packages/ui/AGENTS.md` → DataTable Guidelines |
-| Adding CrudForm field injection widgets (`crud-form:<entityId>:fields`) | `packages/core/AGENTS.md` → Widget Injection + `packages/ui/AGENTS.md` → CrudForm Guidelines |
-| Replacing or wrapping UI components via `widgets/components.ts` (`replace`/`wrapper`/`props`) | `packages/core/AGENTS.md` → Component Replacement + `packages/ui/AGENTS.md` |
-| Adding custom fields/entities, using DSL helpers (`defineLink`, `cf.*`), declaring `ce.ts` | `packages/core/AGENTS.md` → Custom Fields |
-| Adding entity extensions, cross-module data links, `data/extensions.ts` | `packages/core/AGENTS.md` → Extensions |
-| Configuring RBAC features in `acl.ts`, declarative guards, permission checks | `packages/core/AGENTS.md` → Access Control |
-| Fixing wildcard ACL handling in feature-gated runtime helpers (menu items, nav sections, notification handlers, mutation guards, command interceptors, AI tools) | `packages/core/AGENTS.md` → Access Control + `packages/shared/AGENTS.md` + `packages/ui/AGENTS.md` + `packages/core/src/modules/auth/AGENTS.md` (+ `packages/core/src/modules/customer_accounts/AGENTS.md` for portal/customer RBAC) |
-| Using encrypted queries (`findWithDecryption`), encryption defaults, GDPR fields | `packages/core/AGENTS.md` → Encryption |
-| Adding response enrichers to enrich other modules' API responses | `packages/core/AGENTS.md` → Response Enrichers |
-| Filtering CRUD list APIs by multiple IDs (`?ids=uuid1,uuid2`), including interceptor-driven ID narrowing | `packages/core/AGENTS.md` → API Interceptors + `packages/shared/AGENTS.md` |
-| Adding DOM Event Bridge (SSE-based real-time events to browser), `useAppEvent`, `useOperationProgress` | `packages/events/AGENTS.md` → DOM Event Bridge |
-| Building customer portal pages, portal auth, portal nav injection, portal event bridge | `packages/ui/AGENTS.md` → Portal Extension |
-| Adding new widget event handlers (`onFieldChange`, `onBeforeNavigate`, transformers) | `packages/ui/AGENTS.md` |
+| New module, scaffolding, auto-discovery paths | `core` + [`.ai/docs/module-development.md`](.ai/docs/module-development.md). **Standalone apps**: the `om-module-scaffold` skill scaffolds a module end-to-end |
+| Official modules via the `external/official-modules` submodule, activation (`yarn official-modules`, `official-modules.json`), committing to the submodule's git | [`.ai/docs/official-modules.md`](.ai/docs/official-modules.md) |
+| CRUD API routes, OpenAPI specs, `makeCrudRoute`, query engine integration | `core` → API Routes |
+| `setup.ts` tenant init, role features, syncing ACL grants to roles, seeding defaults/examples | `core` → Module Setup |
+| Typed events with `createModuleEvents`, CRUD/lifecycle events, subscribers | `core` → Events |
+| In-app notifications, subscriber-based alerts, renderers; reactive handlers (`notifications.handlers.ts`), `useNotificationEffect` | `core` → Notifications + `ui` |
+| Injecting UI widgets into other modules, spot IDs, cross-module UI extensions | `core` → Widgets |
+| Headless injection widgets (menu items, columns, fields), `InjectionPosition`, `useInjectionDataWidgets`; DataTable extension widgets (columns/row actions/bulk actions/filters); CrudForm field widgets (`crud-form:<entityId>:fields`) | `core` → Widget Injection + `ui` → DataTable / CrudForm Guidelines |
+| Menu items into main/settings/profile sidebars or topbar dropdown (`useInjectedMenuItems`, `mergeMenuItems`) | `ui` |
+| API route interceptors (`api/interceptors.ts`, before/after hooks, body/query rewrite) | `core` → API Interceptors |
+| Bulk operations, DataTable bulk actions, selected-row mutations, long-running operations with progress | `core:progress` + `ui` → DataTable Guidelines + `queue` |
+| Replacing/wrapping UI components via `widgets/components.ts` (`replace`/`wrapper`/`props`) | `core` → Component Replacement + `ui` |
+| Custom fields/entities, DSL helpers (`defineLink`, `cf.*`), `ce.ts` | `core` → Custom Fields |
+| Entity extensions, cross-module data links, `data/extensions.ts` | `core` → Extensions |
+| Coupling one module to another (events / widget injection + enrichers / FK-id + snapshot / soft-optional `tryResolve`), depending on an OPTIONAL integration | `core` → Cross-Module Coupling + `packages/core/src/__tests__/module-decoupling.test.ts` |
+| RBAC features in `acl.ts`, declarative guards, permission checks | `core` → Access Control |
+| Wildcard ACL handling in feature-gated runtime helpers (menus, notification handlers, mutation guards, command interceptors, AI tools) | `core` → Access Control + `shared` + `ui` + `core:auth` (portal: `core:customer_accounts`) |
+| Encrypted queries (`findWithDecryption`), encryption defaults, GDPR fields | `core` → Encryption |
+| Response enrichers for other modules' API responses | `core` → Response Enrichers |
+| Filtering CRUD list APIs by multiple IDs (`?ids=uuid1,uuid2`), interceptor-driven ID narrowing | `core` → API Interceptors + `shared` |
+| Optimistic locking / concurrent-edit conflicts: `updated_at` versioning (**default ON** for every `makeCrudRoute` entity, opt out with `OM_OPTIMISTIC_LOCK=off`), the 409 body, client helpers (`buildOptimisticLockHeader`, `extractOptimisticLockConflict`), command-pattern writes (`enforceCommandOptimisticLock`, the DI-overridable `createCommandOptimisticLockGuardService`), the unified conflict bar (`surfaceRecordConflict`) | `apps/docs/docs/framework/data-integrity/concurrency-locking.mdx` (§ Protecting command/action endpoints) + `.ai/specs/implemented/2026-05-25-oss-optimistic-locking.md` + `.ai/specs/2026-05-28-optimistic-locking-coverage-completion.md` + `packages/shared/src/lib/crud/optimistic-lock{,-command}.ts` + `packages/ui/src/backend/conflicts/` |
+| DOM Event Bridge (SSE real-time events to browser), `useAppEvent`, `useOperationProgress` | `events` → DOM Event Bridge |
+| Customer portal pages, portal auth, portal nav injection, portal event bridge | `ui` → Portal Extension + `om-backend-ui-design` skill |
+| Widget event handlers (`onFieldChange`, `onBeforeNavigate`, transformers) | `ui` |
+| AI agents/tools (`ai-agents.ts`, `ai-tools.ts`, tool packs, mutation approval via `prepareMutation`, attachments, provider/model selection) | `.ai/skills/om-create-ai-agent/SKILL.md` + `ai-assistant` + `apps/docs/docs/framework/ai-assistant/*.mdx` |
+| AI agent loop controls + overrides (`loop.stopWhen/prepareStep/budget`, per-tenant settings, replacing/disabling agents/tools, `entry.overrides`) | `ai-assistant` → Loop controls + How to Override; in `.ai/specs/implemented/`: `2026-04-28-ai-agents-agentic-loop-controls`, `2026-04-30-ai-overrides-and-module-disable`, `2026-05-04-modules-ts-unified-overrides` |
 | **Specific Modules** | |
-| Managing people/companies/deals/activities, **copying CRUD patterns for new modules** | `packages/core/src/modules/customers/AGENTS.md` |
-| Building orders/quotes/invoices, pricing calculations, document flow (Quote→Order→Invoice), shipments/payments, channel scoping | `packages/core/src/modules/sales/AGENTS.md` |
-| Managing products/categories/variants, pricing resolvers (`selectBestPrice`), offers, channel-scoped pricing, option schemas | `packages/core/src/modules/catalog/AGENTS.md` |
-| Users/roles/RBAC implementation, authentication flow, session management, feature-based access control | `packages/core/src/modules/auth/AGENTS.md` |
-| Customer identity, customer portal auth (login/signup/magic links), customer RBAC, sessions, CRM auto-linking, admin user management | `packages/core/src/modules/customer_accounts/AGENTS.md` |
-| Multi-currency support, exchange rates, dual currency recording, realized gains/losses | `packages/core/src/modules/currencies/AGENTS.md` |
-| Workflow automation, defining step-based workflows, executing instances, user tasks, async activities, event triggers, signals, compensation (saga pattern), visual editor | `packages/core/src/modules/workflows/AGENTS.md` |
-| Integration Marketplace foundation (registry/bundles, credentials, state, health checks, logs, admin UI, integration manifests) | `packages/core/src/modules/integrations/AGENTS.md` |
-| Data Sync hub (adapters, run lifecycle, workers, mapping APIs, scheduled sync, progress linkage, admin UI) | `packages/core/src/modules/data_sync/AGENTS.md` |
-| Building outbound/inbound webhooks, Standard Webhooks signing, delivery queues, webhook admin UI, marketplace webhook settings | `packages/webhooks/AGENTS.md` + `packages/queue/AGENTS.md` + `packages/events/AGENTS.md` + `packages/core/src/modules/integrations/AGENTS.md` + `packages/ui/AGENTS.md` |
-| Building a new integration provider module (adapter, health check, credentials, bundle wiring) | `packages/core/src/modules/integrations/AGENTS.md` + `packages/core/src/modules/data_sync/AGENTS.md` + `.ai/skills/integration-builder/SKILL.md` + `.ai/specs/implemented/SPEC-041-2026-02-24-universal-module-extension-system.md` + `.ai/specs/implemented/SPEC-045-2026-02-24-integration-marketplace.md` + `.ai/specs/implemented/SPEC-045c-payment-shipping-hubs.md` (+ `.ai/specs/implemented/SPEC-044-2026-02-24-payment-gateway-integrations.md` for payment providers) |
-| Wiring progress UX for long-running sync operations (top bar polling, job lifecycle, future SSE bridge) | `packages/core/src/modules/data_sync/AGENTS.md` + `packages/events/AGENTS.md` |
+| Module-specific work (customers as CRUD reference, plus sales, catalog, auth, customer_accounts, currencies, workflows, integrations, data_sync, progress, warranty_claims / RMA) | `packages/core/src/modules/<module>/AGENTS.md` |
+| Webhooks (outbound/inbound, Standard Webhooks signing, delivery queues, admin UI) | `webhooks` (cross-refs `queue`, `events`, `core:integrations`, `ui`) |
+| New integration provider (adapter, health check, credentials, bundle wiring) | `.ai/skills/om-integration-builder/SKILL.md` + `core:integrations` + `core:data_sync` + `channel-*` |
 | **Packages** | |
-| Adding reusable utilities, encryption helpers, i18n translations (`useT`/`resolveTranslations`), boolean parsing, data engine types, request scoping | `packages/shared/AGENTS.md` |
-| Building forms (`CrudForm`), data tables (`DataTable`), loading/error states, flash messages, `FormHeader`/`FormFooter`, dialog UX (`Cmd+Enter`/`Escape`) | `packages/ui/AGENTS.md` |
-| Backend page components, `apiCall` usage, `RowActions` ids, `LoadingMessage`/`ErrorMessage` | `packages/ui/src/backend/AGENTS.md` |
-| Configuring fulltext/vector/token search, writing `search.ts`, reindexing entities, debugging search, search CLI commands | `packages/search/AGENTS.md` |
-| Adding MCP tools (`registerMcpTool`), modifying OpenCode config, debugging AI chat, session tokens, command palette, two-tier auth | `packages/ai-assistant/AGENTS.md` |
-| Running generators (`yarn generate`), creating database migrations (`yarn db:generate`), scaffolding modules, build order | `packages/cli/AGENTS.md` |
-| Event bus architecture, ephemeral vs persistent subscriptions, queue integration for events, event workers | `packages/events/AGENTS.md` |
-| Adding cache to a module, tag-based invalidation, tenant-scoped caching, choosing strategy (memory/SQLite/Redis) | `packages/cache/AGENTS.md` |
-| Adding background workers, configuring concurrency (I/O vs CPU-bound), idempotent job processing, queue strategies | `packages/queue/AGENTS.md` |
-| Adding onboarding wizard steps, tenant setup hooks (`onTenantCreated`/`seedDefaults`), welcome/invitation emails | `packages/onboarding/AGENTS.md` |
-| Adding static content pages (privacy policies, terms, legal pages) | `packages/content/AGENTS.md` |
-| Testing standalone apps with Verdaccio, publishing packages, canary releases, template scaffolding | `packages/create-app/AGENTS.md` |
+| Reusable utilities, encryption helpers, i18n (`useT`/`resolveTranslations`), boolean parsing, data engine types, request scoping | `shared` |
+| Structured logging / replacing raw `console.*` with the facade (`createLogger`, `child()`, `OM_LOG_LEVEL`), advisory `yarn logger:check-console` | `apps/docs/docs/framework/runtime/logging.mdx` + `.ai/specs/2026-07-02-structured-logging-facade.md` + `shared` |
+| Forms (`CrudForm`), data tables (`DataTable`), loading/error states, flash messages, `FormHeader`/`FormFooter`, dialog UX | `ui` + `om-backend-ui-design` skill (+ `om-ds-guardian` for DS-token compliance) |
+| Reusing backend component families (charts/KPIs, filters, detail sections, schedule, messages, notifications, page scaffolding, banners) — check BEFORE building any from scratch | [`.ai/ui-backend-components.md`](.ai/ui-backend-components.md) + `ui` |
+| Backend page components, `apiCall` usage, `RowActions` ids, `LoadingMessage`/`ErrorMessage` | `ui:backend` + `om-backend-ui-design` skill |
+| Fulltext/vector/token search, `search.ts`, reindexing entities, debugging search, search CLI | `search` |
+| MCP tools (`registerMcpTool`), OpenCode config, AI chat debugging, session tokens, command palette, two-tier auth | `ai-assistant` |
+| Generators (`yarn generate`), migrations (`yarn db:generate`), module scaffolding, build order | `cli` |
+| Event bus architecture, ephemeral vs persistent subscriptions, queue integration, event workers | `events` |
+| Cache in a module, tag-based invalidation, tenant-scoped caching, strategy (memory/SQLite/Redis) | `cache` |
+| Background workers, concurrency (I/O vs CPU-bound), idempotent jobs, queue strategies | `queue` |
+| Operation progress in the top bar, `ProgressJob`s, client-local progress events | `core:progress` + `events` → DOM Event Bridge |
+| Onboarding wizard steps, tenant setup hooks (`onTenantCreated`/`seedDefaults`), welcome/invitation emails | `onboarding` |
+| Static content pages (privacy policies, terms, legal pages) | `content` |
+| Standalone apps with Verdaccio, publishing packages, canary releases, template scaffolding | `create-app` |
+| Editing `apps/mercato/src/app/**`, `apps/mercato/src/i18n/**`, or env vars in `apps/mercato/.env.example` — MUST mirror into the create-app template in the same task (`yarn template:sync:fix`) | `create-app` → Template Sync Checklist |
+| Deploying a scaffolded app to Railway with `mercato deploy railway` | [`.ai/specs/2026-05-12-railway-one-command-deploy.md`](.ai/specs/2026-05-12-railway-one-command-deploy.md) + [`apps/docs/docs/deployment/railway.mdx`](apps/docs/docs/deployment/railway.mdx) + `cli` |
+| **Performance** | |
+| Profiling dev-mode memory (`yarn dev:profile`), ranking memory hogs, watcher / Vite-vs-Turbopack tradeoffs | `.ai/specs/2026-05-27-dev-mode-memory-quick-wins.md` + `scripts/profile-dev-rss.mjs` |
+| **Migration** | |
+| Migrating custom module code from MikroORM v6 to v7 (decorators, persist/flush, Knex→Kysely, ORM config, Jest setup) | `.ai/skills/om-migrate-mikro-orm/SKILL.md` |
 | **Testing** | |
-| Integration testing, creating/running Playwright tests, converting markdown test cases to TypeScript, CI test pipeline | `.ai/qa/AGENTS.md` + `.ai/skills/integration-tests/SKILL.md` |
-| **Spec Lifecycle** | |
-| Analyzing a spec before implementation: BC impact, risk assessment, gap analysis, readiness report | `.ai/skills/pre-implement-spec/SKILL.md` |
-| Implementing a spec (or specific phases) with coordinated agents, unit tests, docs, progress tracking | `.ai/skills/implement-spec/SKILL.md` |
-| Writing new specs, updating existing specs after implementation, documenting architectural decisions, maintaining changelogs | `.ai/specs/AGENTS.md` |
-| Reviewing code changes for architecture, security, conventions, and quality compliance | `.ai/skills/code-review/SKILL.md` |
-| Migrating hardcoded colors/typography to semantic tokens, analyzing DS violations, scaffolding DS-compliant pages, reviewing DS compliance | `.ai/skills/ds-guardian/SKILL.md` |
-| Reviewing a GitHub PR by number (checkout, code-review, submit review, apply label) | `.ai/skills/auto-review-pr/SKILL.md` |
-| Scanning open PRs for merge readiness, listing what can be merged now, triaging blockers | `.ai/skills/merge-buddy/SKILL.md` |
-| Day-start review triage: reviewing all unreviewed PRs (newest first) in one session | `.ai/skills/review-prs/SKILL.md` |
-| Running an arbitrary autonomous task end-to-end and delivering it as a PR against `develop` (drafts a dated spec with a Progress checklist, commits it first, implements phase-by-phase with incremental commits, optionally honors external reference skills via `--skill-url`, runs the full validation gate, opens a PR with normalized pipeline labels) | `.ai/skills/auto-create-pr/SKILL.md` |
-| Resuming an in-progress PR created by `auto-create-pr`: claims the PR, re-enters an isolated worktree, reads the linked spec's Progress checklist, and continues from the first unchecked step | `.ai/skills/auto-continue-pr/SKILL.md` |
+| Integration testing, Playwright tests, converting markdown test cases to TypeScript, CI test pipeline | `.ai/qa/AGENTS.md` + `.agents/skills/om-integration-tests/SKILL.md` |
+| Refreshing standalone-app AI harness coverage after module, extension-point, contract, generator/discovery, or release changes | `.ai/skills/om-refresh-standalone-harness/SKILL.md` + `packages/create-app/agentic/shared/ai/skills/om-evolve-harness/SKILL.md` |
+| **Spec & PR Automation** | |
+| Spec lifecycle (pre-implement → implement → write/update), code review, DS review | `.agents/skills/{om-spec-writing,om-code-review}/SKILL.md` + `.ai/skills/{om-pre-implement-spec,om-implement-spec,om-ds-guardian}/SKILL.md` + `.ai/specs/AGENTS.md` + `.ai/ds-rules.md` |
+| PR/issue automation (one-shot auto-PR, resumable loop variants, review/merge-buddy, post-merge sync, changelog, UI QA). **Default for one-off bug fixes / small features:** `om-auto-create-pr` | `.agents/skills/{om-auto-create-pr,om-auto-continue-pr,om-auto-create-pr-loop,om-auto-continue-pr-loop,om-auto-review-pr,om-auto-qa-pr,om-merge-buddy,om-review-prs,om-close-fixed-issues,om-auto-update-changelog,om-prepare-issue}/SKILL.md` |
+| Cutting a release (version bump PR, tag, npm publish, release notes) | [`CONTRIBUTING.md`](CONTRIBUTING.md) → Releasing |
+| **Agent harness itself** | |
+| Editing this file or a package `AGENTS.md`; the instruction budget and boundary labels | [`.ai/docs/agent-instructions.md`](.ai/docs/agent-instructions.md) + `scripts/check-agents-md-budget.mjs` (`yarn agents:check-budget`) |
+
+Most `om-*` automation skills come from the shared [open-mercato/skills](https://github.com/open-mercato/skills) collection; `yarn install-skills` installs and updates them. Repo-specific settings live in `.ai/agentic.config.json` (+ the tracker descriptor `.ai/trackers/github.md`); a folder under `.ai/skills/` matching an external skill name is a repo-local override those skills follow on top of their built-in workflow, and the remaining `.ai/skills/` folders are repo-local skills installed by tier (`.ai/skills/tiers.json`). Both sources install into **one canonical directory**, `.agents/skills/` (Claude Code cannot read it, so it also gets a symlink layer under `.claude/skills/`). Installer flags: [`.ai/skills/README.md`](.ai/skills/README.md).
 
 ## Core Principles
 
@@ -87,47 +137,31 @@ IMPORTANT: Before any research or coding, match the task to the root `AGENTS.md`
 
 ## Workflow Orchestration
 
-1.  **Spec-first**: Enter plan mode for non-trivial tasks (3+ steps or architectural decisions). Check `.ai/specs/` and `.ai/specs/enterprise/` before coding; create spec files using scope-appropriate naming (`{date}-{title}.md` for OSS and enterprise, with `date` as `YYYY-MM-DD` and `title` as kebab-case). Skip for small fixes.
-    -   **Detailed Workflow**: Refer to the **`spec-writing` skill** for research, phasing, and architectural review standards (`.ai/skills/spec-writing/SKILL.md`).
-    -   **Pre-implementation analysis**: Before implementing a complex spec, run the **`pre-implement-spec` skill** to audit backward compatibility, identify gaps, and produce a readiness report.
-    -   **Implementation**: Use the **`implement-spec` skill** to execute spec phases with coordinated subagents, unit tests, progress tracking, and code-review compliance gates.
+1.  **Spec-first**: Enter plan mode for non-trivial tasks (3+ steps or architectural decisions). Check `.ai/specs/` and `.ai/specs/enterprise/` before coding; name new spec files `{YYYY-MM-DD}-{kebab-case-title}.md`. Skip for small fixes. Skills: `om-spec-writing` (research/phasing), `om-pre-implement-spec` (readiness audit), `om-implement-spec` (execution).
 2.  **Subagent strategy**: Use subagents liberally to keep main context clean. Offload research and parallel analysis. One task per subagent.
-3.  **Self-improvement**: After corrections, update `.ai/lessons.md` or relevant AGENTS.md. Write rules that prevent the same mistake.
+3.  **Self-improvement**: After corrections, scan `.ai/lessons.md`; update one tagged lesson record + index row or the relevant AGENTS.md. Never bulk-read lessons.
 4.  **Verification**: Run tests, check build, suggest user verification. Ask: "Would a staff engineer approve this?"
 5.  **Elegance**: For non-trivial changes, pause and ask "is there a more elegant way?" Skip for simple fixes.
 6.  **Autonomous bug fixing**: When given a bug report, just fix it. Point at logs/errors, then resolve. Zero hand-holding.
 
 ## PR Workflow
 
-- Pipeline labels are mutually exclusive: `review`, `changes-requested`, `qa`, `qa-failed`, `merge-queue`, `blocked`, `do-not-merge`.
-- Category labels are additive: `bug`, `feature`, `refactor`, `security`, `dependencies`, `enterprise`, `documentation`.
-- Meta labels are additive: `needs-qa`, `skip-qa`, `in-progress`.
-- A ready non-draft PR should carry `review` unless it is already in another pipeline state.
-- `auto-review-pr` MUST move approved PRs to `qa` when `needs-qa` is present and `skip-qa` is absent; otherwise it MUST move them to `merge-queue`.
-- `auto-review-pr` MUST move review failures to `changes-requested`.
-- `needs-qa` is for UI changes, new features, sales or order flows, and other customer-facing behavior that needs manual exercise.
-- `skip-qa` is for docs-only, dependency-only, CI-only, test-only, typo-only, or similarly low-risk non-customer-facing changes.
-- Auto-skills that mutate PRs or issues MUST claim them first with all three signals: assignee, `in-progress` label, and a claim comment. They MUST release the `in-progress` label when finished, even on failure.
-- When an auto-skill adds or changes a PR pipeline/meta label, it MUST also leave a short PR comment explaining why that label was applied.
-- Use `gh` for manual QA transitions:
+Full policy — label taxonomy, priority/risk inference tables, pipeline transitions, the automated-verification exemption, the self-QA exception and the auto-skill claim protocol: [`.ai/docs/pr-workflow.md`](.ai/docs/pr-workflow.md). The boundaries:
 
-```bash
-# QA pass
-gh pr edit <number> --remove-label "qa" --add-label "merge-queue"
-
-# QA fail
-gh pr edit <number> --remove-label "qa" --add-label "qa-failed"
-
-# Re-request QA after a fix
-gh pr edit <number> --remove-label "qa-failed" --add-label "qa"
-```
+- Pipeline labels are mutually exclusive: `review`, `changes-requested`, `qa`, `qa-failed`, `merge-queue`, `blocked`, `do-not-merge`. A ready non-draft PR carries `review` unless it is already in another pipeline state.
+- Category (`bug`, `feature`, `refactor`, `security`, `dependencies`, `enterprise`, `documentation`) and meta (`needs-qa`, `skip-qa`, `qa-approved`, `qa-self-verified`, `in-progress`, `ci-monitoring`, `screenshots`) labels are additive.
+- Every non-draft PR carries **exactly one** priority label (`priority-low|medium|high|extreme`, urgency) and **exactly one** risk label (`risk-low|medium|high`, blast radius). They are orthogonal; when signals conflict pick the higher one and say why in the label comment.
+- **QA-approval merge gate (hard rule): a PR carrying `needs-qa` MUST NOT be merged unless it also carries `qa-approved`**, even when every other check is green. `skip-qa` is the explicit opt-out; never combine it with `needs-qa`/`qa-approved`. `qa-failed`, `do-not-merge` and `blocked` are likewise hard merge blocks.
+- **Automated-verification exemption:** a change touching no UI-rendering file (no `.tsx` outside tests, nothing under `packages/ui/src/` or `**/components/**`) takes `skip-qa` — **but only** with the database structure and API surface unchanged, no `BACKWARD_COMPATIBILITY.md` contract broken, and automated tests for the changed behavior in the same PR; otherwise it keeps `needs-qa`.
+- `qa-approved`/`qa-self-verified` are label writes: a `read`-permission contributor posts the QA evidence comment and a maintainer applies the labels; a skill that cannot apply them MUST report it stopped there.
+- The `qa` pipeline label means manual QA is **in progress** and is set by QA reviewers only — `om-auto-*` skills request QA with `needs-qa` and never touch `qa`.
+- Auto-skills claim a PR/issue with all three signals (assignee, `in-progress` label, claim comment), release `in-progress` even on failure, and comment the rationale whenever they change a pipeline/meta label.
+- `ci-monitoring` is a meta label, **not** a claim signal: it means the work is finished and reported and only CI is still being watched. A PR carrying it without `in-progress`, a non-self assignee or a fresh claim comment MUST NOT be treated as in progress — it is free to claim.
 
 ### Documentation and Specifications
 
-- OSS specs live in `.ai/specs/`; commercial/enterprise specs live in `.ai/specs/enterprise/` — see `.ai/specs/AGENTS.md` for naming, structure, and changelog conventions.
-- Always check for existing specs before modifying a module. Update specs when implementing significant changes.
-- For every new feature, the spec MUST list integration coverage for all affected API paths and key UI paths.
-- For every new feature, implement the integration tests defined in the spec as part of the same change — see `.ai/qa/AGENTS.md` for the workflow.
+- OSS specs live in `.ai/specs/`; commercial/enterprise specs live in `.ai/specs/enterprise/` — see `.ai/specs/AGENTS.md` for naming, structure, and changelog conventions. Always check for existing specs before modifying a module, and update them when implementing significant changes.
+- For every new feature, the spec MUST list integration coverage for all affected API paths and key UI paths, and those integration tests MUST ship in the same change — see `.ai/qa/AGENTS.md`.
 - Integration tests MUST be self-contained: create required fixtures in test setup (prefer API fixtures), clean up created records in teardown/finally, and remain stable without relying on seeded/demo data.
 
 ## Monorepo Structure
@@ -139,22 +173,7 @@ gh pr edit <number> --remove-label "qa-failed" --add-label "qa"
 
 ### Packages (`packages/`)
 
-All packages use the `@open-mercato/<package>` naming convention:
-
-| Package | Import | When to use |
-|---------|--------|-------------|
-| **shared** | `@open-mercato/shared` | When you need cross-cutting utilities, types, DSL helpers, i18n, data engine |
-| **ui** | `@open-mercato/ui` | When building UI components, forms, data tables, backend pages |
-| **core** | `@open-mercato/core` | When working on core business modules (auth, catalog, customers, sales) |
-| **cli** | `@open-mercato/cli` | When adding CLI tooling or generator commands |
-| **cache** | `@open-mercato/cache` | When adding caching — resolve via DI, never use raw Redis/SQLite |
-| **queue** | `@open-mercato/queue` | When adding background jobs — use worker contract, never custom queues |
-| **events** | `@open-mercato/events` | When adding event-driven side effects between modules |
-| **search** | `@open-mercato/search` | When configuring search indexing (fulltext, vector, tokens) |
-| **ai-assistant** | `@open-mercato/ai-assistant` | When working on AI assistant or MCP server tools |
-| **content** | `@open-mercato/content` | When adding static content pages (privacy, terms, legal) |
-| **onboarding** | `@open-mercato/onboarding` | When modifying setup wizards or tenant provisioning flows |
-| **enterprise** | `@open-mercato/enterprise` | When working on commercial enterprise-only modules and overlays |
+All packages use the `@open-mercato/<package>` naming convention: **shared** (cross-cutting utilities, types, DSL helpers, i18n, data engine), **ui**, **core** (business modules: auth, catalog, customers, sales), **cli**, **cache** (always via DI, never raw Redis/SQLite), **queue** (background jobs via the worker contract, never custom queues), **events**, **search**, **ai-assistant**, **content**, **onboarding**, **enterprise** (commercial-only modules and overlays).
 
 ### Where to Put Code
 
@@ -163,39 +182,17 @@ All packages use the `@open-mercato/<package>` naming convention:
 - Put shared utilities and types in `packages/shared/src/lib/` or `packages/shared/src/modules/`
 - Put UI components in `packages/ui/src/`
 - Put user/app-specific modules in `apps/mercato/src/modules/<module>/`
-- MUST NOT add code directly in `apps/mercato/src/` — it's a boilerplate for user apps
+- MUST NOT add code directly in `apps/mercato/src/` — it's a boilerplate for user apps. Narrow exception: committed, typed *generated registries* (`*.generated.ts`) that must survive `yarn clean-generated` and travel with the repo — see [Generated Files: versioned vs ephemeral](.ai/docs/module-development.md#generated-files-versioned-vs-ephemeral).
+
+### `external/official-modules/` (git submodule)
+
+An optional, uncommitted git submodule. When present it is **real working code** — first-class for search, grep and refactoring, not vendored build output. Edits there commit to the submodule's own git and ship as a separate PR; **never `git add external/official-modules`** (pointer bump) unless explicitly asked. Activation, module-id convention and cross-repo merge order: [`.ai/docs/official-modules.md`](.ai/docs/official-modules.md).
 
 ### When You Need an Import
 
-| Need | Import |
-|------|--------|
-| Command pattern (undo/redo) | `import { registerCommand } from '@open-mercato/shared/lib/commands'` |
-| Server-side translations | `import { resolveTranslations } from '@open-mercato/shared/lib/i18n/server'` |
-| Client-side translations | `import { useT } from '@open-mercato/shared/lib/i18n/context'` |
-| Data engine types | `import type { DataEngine } from '@open-mercato/shared/lib/data/engine'` |
-| Search config types | `import type { SearchModuleConfig } from '@open-mercato/shared/modules/search'` |
-| Injection positioning | `import { InjectionPosition } from '@open-mercato/shared/modules/widgets/injection-position'` |
-| Headless injection widgets hook | `import { useInjectionDataWidgets } from '@open-mercato/ui/backend/injection/useInjectionDataWidgets'` |
-| Menu injection hook | `import { useInjectedMenuItems } from '@open-mercato/ui/backend/injection/useInjectedMenuItems'` |
-| Component replacement hook | `import { useRegisteredComponent } from '@open-mercato/ui/backend/injection/useRegisteredComponent'` |
-| UI primitives | `import { Spinner } from '@open-mercato/ui/primitives/spinner'` |
-| API calls (backend pages) | `import { apiCall } from '@open-mercato/ui/backend/utils/apiCall'` |
-| CRUD forms | `import { CrudForm } from '@open-mercato/ui/backend/crud'` |
-| API interceptor types | `import type { ApiInterceptor } from '@open-mercato/shared/lib/crud/api-interceptor'` |
-| Response enricher types | `import type { ResponseEnricher } from '@open-mercato/shared/lib/crud/response-enricher'` |
-| App event hook | `import { useAppEvent } from '@open-mercato/ui/backend/injection/useAppEvent'` |
-| Event bridge hook | `import { useEventBridge } from '@open-mercato/ui/backend/injection/eventBridge'` |
-| Operation progress hook | `import { useOperationProgress } from '@open-mercato/ui/backend/injection/useOperationProgress'` |
-| Broadcast event check | `import { isBroadcastEvent } from '@open-mercato/shared/modules/events'` |
-| Portal broadcast event check | `import { isPortalBroadcastEvent } from '@open-mercato/shared/modules/events'` |
-| Portal customer auth hook | `import { useCustomerAuth } from '@open-mercato/ui/portal/hooks/useCustomerAuth'` |
-| Portal tenant context hook | `import { useTenantContext } from '@open-mercato/ui/portal/hooks/useTenantContext'` |
-| Portal shell (layout) | `import { PortalShell } from '@open-mercato/ui/portal/PortalShell'` |
-| Portal menu injection hook | `import { usePortalInjectedMenuItems } from '@open-mercato/ui/portal/hooks/usePortalInjectedMenuItems'` |
-| Portal event bridge hook | `import { usePortalEventBridge } from '@open-mercato/ui/portal/hooks/usePortalEventBridge'` |
-| Portal app event hook | `import { usePortalAppEvent } from '@open-mercato/ui/portal/hooks/usePortalAppEvent'` |
-| Customer auth types | `import type { CustomerAuthContext } from '@open-mercato/shared/modules/customer-auth'` |
-| Customer auth server (cookies) | `import { getCustomerAuthFromCookies } from '@open-mercato/core/modules/customer_accounts/lib/customerAuthServer'` |
+Each package's AGENTS.md is the authoritative cheat sheet for its own imports: UI primitives, backend utilities (`apiCall`, `CrudForm`) and portal hooks → `ui` + `ui:backend`; AI helpers (`defineAiAgent`, `defineAiTool`, `prepareMutation`, `<AiChat>`) → `ai-assistant`; cross-cutting helpers (i18n, commands, encryption, scoped payloads, boolean parsing, data/query engine types, overrides) → `shared`; customer/portal auth helpers, custom-field helpers, CRUD/Indexer types → `shared` + `core`; everything else → the matching package.
+
+Examples worth memorising (used everywhere): `apiCall` from `@open-mercato/ui/backend/utils/apiCall`, `useT` from `@open-mercato/shared/lib/i18n/context`, `resolveTranslations` from `@open-mercato/shared/lib/i18n/server`, `Spinner` from `@open-mercato/ui/primitives/spinner`.
 
 Import strategy:
 - Prefer package-level imports (`@open-mercato/<package>/...`) over deep relative imports (`../../../...`) when crossing module boundaries, referencing shared module internals, or importing from deeply nested files.
@@ -214,92 +211,21 @@ Import strategy:
 - Keep code minimal and focused; avoid side effects across modules.
 - Keep modules self-contained; re-use common utilities via `src/lib/`.
 
-## Module Development Quick Reference
-
-All paths use `src/modules/<module>/` as shorthand. See `packages/core/AGENTS.md` for full details.
-
-### Auto-Discovery Paths
-
-- Frontend pages: `frontend/<path>.tsx` → `/<path>`
-- Backend pages: `backend/<path>.tsx` → `/backend/<path>` (special: `backend/page.tsx` → `/backend/<module>`)
-- API routes: `api/<method>/<path>.ts` → `/api/<path>` (dispatched by method)
-- Subscribers: `subscribers/*.ts` — export default handler + `metadata` with `{ event, persistent?, id? }`
-- Workers: `workers/*.ts` — export default handler + `metadata` with `{ queue, id?, concurrency? }`
-
-### Optional Module Files
-
-| File | Export | Purpose |
-|------|--------|---------|
-| `index.ts` | `metadata` | Module metadata |
-| `cli.ts` | default | CLI commands |
-| `di.ts` | `register(container)` | DI registrar (Awilix) |
-| `acl.ts` | `features` | Feature-based permissions |
-| `setup.ts` | `setup: ModuleSetupConfig` | Tenant initialization, role features, customer role features |
-| `ce.ts` | `entities` | Custom entities / custom field sets |
-| `search.ts` | `searchConfig` | Search indexing configuration |
-| `events.ts` | `eventsConfig` | Typed event declarations |
-| `translations.ts` | `translatableFields` | Translatable field declarations per entity |
-| `notifications.ts` | `notificationTypes` | Notification type definitions |
-| `notifications.client.ts` | — | Client-side notification renderers |
-| `generators.ts` | `generatorPlugins` | Generator plugin declarations for additional aggregated output files |
-| `ai-tools.ts` | `aiTools` | MCP AI tool definitions |
-| `api/interceptors.ts` | `interceptors` | API route interception hooks (before/after) |
-| `data/entities.ts` | — | MikroORM entities |
-| `data/validators.ts` | — | Zod validation schemas |
-| `data/extensions.ts` | `extensions` | Entity extensions (module links) |
-| `widgets/injection/` | — | Injected UI widgets |
-| `widgets/injection-table.ts` | — | Widget-to-slot mappings |
-| `widgets/components.ts` | `componentOverrides` | Component replacement/wrapper/props override definitions |
-| `data/enrichers.ts` | `enrichers` | Response enrichers for data federation |
-
-### Key Rules
-
-- API routes MUST export `openApi` for documentation generation
-- CRUD routes: use `makeCrudRoute` with `indexer: { entityType }` for query index coverage
-- Write operations: implement via the Command pattern (see `packages/core/src/modules/customers/commands/*`)
-- Feature naming convention: `<module>.<action>` (e.g., `example.view`, `example.create`).
-- setup.ts: always declare `defaultRoleFeatures` when adding features to `acl.ts`
-- Every module with guarded routes or pages MUST declare features in `acl.ts` — never ship an empty `acl.ts` with `requireRoles` guards
-- Custom fields: use `collectCustomFieldValues()` from `@open-mercato/ui/backend/utils/customFieldValues`
-- Events: use `createModuleEvents()` with `as const` for typed emit
-- Translations: when adding entities with user-facing text fields (title, name, description, label), create `translations.ts` at module root declaring translatable fields. Run `yarn generate` after adding.
-- Widget injection: declare in `widgets/injection/`, map via `injection-table.ts`
-- API interception: declare interceptors in `api/interceptors.ts`; keep hooks fail-closed and scoped by route + method
-- Interceptors that narrow CRUD list results SHOULD prefer rewriting `query.ids` (comma-separated UUID list) instead of post-filtering response arrays
-- Component replacement: use handle-based IDs (`page:*`, `data-table:*`, `crud-form:*`, `section:*`) for deterministic overrides
-- Generated files: `apps/mercato/.mercato/generated/` — never edit manually
-- Enable modules in your app’s `src/modules.ts` (e.g. `apps/mercato/src/modules.ts`)
-- Run `yarn generate` after adding/modifying module files
-- Agents MUST automatically run `yarn mercato configs cache structural --all-tenants` after enabling/disabling modules in `src/modules.ts`, adding/removing backend or frontend pages, or changing sidebar/navigation injection — stale `nav:*` cache can hide structural changes until it is purged
-- New integration providers MUST own their env-backed preconfiguration inside the provider package: implement preset reading/application in the provider module, apply it from `setup.ts`, expose a rerunnable provider CLI command when practical, and document the env variables. Do not add provider-specific preconfiguration logic to core modules.
-
 ## Backward Compatibility Contract
 
-> **Full specification**: [`BACKWARD_COMPATIBILITY.md`](BACKWARD_COMPATIBILITY.md) — MUST be read before modifying any contract surface.
+> **Full specification**: [`BACKWARD_COMPATIBILITY.md`](BACKWARD_COMPATIBILITY.md) — MUST be read before modifying any contract surface. It enumerates the 13 contract-surface categories (auto-discovery files, types, signatures, import paths, event IDs, widget spot IDs, API routes, DB schema, DI keys, ACL features, notification IDs, CLI commands, generated files) and their FROZEN / STABLE / ADDITIVE-ONLY classification.
 
 Third-party module developers depend on stable platform APIs. Any change to a **contract surface** is a breaking change that blocks merge unless the deprecation protocol is followed.
 
-**Deprecation protocol** (summary): (1) never remove in one release, (2) add `@deprecated` JSDoc, (3) provide a bridge (re-export/alias/dual-emit) for ≥1 minor version, (4) document in RELEASE_NOTES.md, (5) reference a spec with "Migration & Backward Compatibility" section.
+**Deprecation protocol** (summary): (1) never remove in one release, (2) add `@deprecated` JSDoc, (3) provide a bridge (re-export/alias/dual-emit) for ≥1 minor version, (4) document in UPGRADE_NOTES.md, (5) reference a spec with "Migration & Backward Compatibility" section.
 
-**13 contract surface categories** (details in `BACKWARD_COMPATIBILITY.md`):
+## Boundary Labels for Agent Rules
 
-| # | Surface | Classification | Key Rule |
-|---|---------|---------------|----------|
-| 1 | Auto-discovery file conventions | FROZEN | File names, export names, routing algorithms immutable |
-| 2 | Type definitions & interfaces | STABLE | Required fields cannot be removed/narrowed; optional additive-only |
-| 3 | Function signatures | STABLE | Cannot remove/reorder params; new optional params OK |
-| 4 | Import paths | STABLE | Moved modules must re-export from old path |
-| 5 | Event IDs | FROZEN | Cannot rename/remove; payload fields additive-only |
-| 6 | Widget injection spot IDs | FROZEN | Cannot rename/remove; context fields additive-only |
-| 7 | API route URLs | STABLE | Cannot rename/remove; response fields additive-only |
-| 8 | Database schema | ADDITIVE-ONLY | No column/table rename/remove; new columns with defaults OK |
-| 9 | DI service names | STABLE | Cannot rename registration keys |
-| 10 | ACL feature IDs | FROZEN | Stored in DB; rename requires data migration |
-| 11 | Notification type IDs | FROZEN | Referenced by subscribers and stored in DB |
-| 12 | CLI commands | STABLE | Cannot rename/remove commands or required flags |
-| 13 | Generated file contracts | STABLE | Export names and `BootstrapData` shape immutable |
+Use `Always`, `Ask First`, `Never`, and `Validation Commands` headings when adding or reorganizing agent rules — definitions and the instruction-budget contract: [`.ai/docs/agent-instructions.md`](.ai/docs/agent-instructions.md).
 
-## Critical Rules
+## Architecture, Data, UI, and Code Rules
+
+These are critical project-wide rules. The top-level `Always`, `Ask First`, and `Never` sections summarize their boundaries; this section keeps the detailed requirements.
 
 ### Architecture
 
@@ -315,7 +241,8 @@ Third-party module developers depend on stable platform APIs. Any change to a **
 -   Validate all inputs with zod; place validators in `data/validators.ts`
 -   Derive TypeScript types from zod via `z.infer<typeof schema>`
 -   Use `findWithDecryption`/`findOneWithDecryption` instead of `em.find`/`em.findOne`
--   Never hand-write migrations — update ORM entities, run `yarn db:generate`
+-   Default migration workflow: update ORM entities, run `yarn db:generate`, and review the generated SQL plus `migrations/.snapshot-open-mercato.json`
+-   Coding-agent exception: if `yarn db:generate` emits unrelated migrations, delete the unrelated output, keep or write only the intended SQL migration for this entity change, and update the affected module's `.snapshot-open-mercato.json`. Never run `yarn db:migrate` just to make the generator quiet.
 -   Hash passwords with bcryptjs (cost >=10), never log credentials
 -   Return minimal error messages for auth (avoid revealing whether email exists)
 -   RBAC: prefer declarative guards (`requireAuth`, `requireFeatures`) in page metadata; avoid `requireRoles` — role names are mutable and can be spoofed; use feature-based guards with immutable IDs from `acl.ts` instead
@@ -331,6 +258,7 @@ Third-party module developers depend on stable platform APIs. Any change to a **
 -   Use `LoadingMessage`/`ErrorMessage` from `@open-mercato/ui/backend/detail`
 -   i18n: `useT()` client-side, `resolveTranslations()` server-side
 -   Never hard-code user-facing strings — use locale files
+-   Prefix purely internal `throw new Error(...)` / `createCrudFormError(...)` / `toast.*(...)` messages with `[internal]` so the i18n hardcoded-string checker treats them as opted out; user-facing variants MUST route through `t('module.errors.<key>')`. Run `yarn i18n:check-hardcoded` (and `yarn i18n:check-values` for non-English coverage) to inspect the surface — both are advisory in Phase 1 of `.ai/specs/2026-05-26-missing-translations-audit-and-remediation.md`. Use `<module>/i18n/.hardcoded-allowlist.json` for module-scoped exceptions (legal copy, framework chrome).
 -   Every dialog: `Cmd/Ctrl+Enter` submit, `Escape` cancel
 -   Keep `pageSize` at or below 100
 
@@ -345,107 +273,28 @@ Third-party module developers depend on stable platform APIs. Any change to a **
 
 ## Design System Rules
 
-### Colors
-- NEVER use hardcoded Tailwind colors for status semantics (`text-red-*`, `bg-green-*`, `text-emerald-*`, `bg-blue-*`, `text-amber-*`, etc.)
-- USE semantic tokens: `text-status-error-text`, `bg-status-success-bg`, `border-status-warning-border`, `text-status-info-icon`
-- Status token structure: `{property}-status-{status}-{role}` where status = error|success|warning|info|neutral and role = bg|text|border|icon
-- For destructive actions (buttons, not status display): use existing `destructive` token (`text-destructive`, `bg-destructive`)
-- All status tokens have dedicated dark mode values — NO `dark:` overrides needed
+> Foundations (token tables, decision trees, color/spacing/typography rules): `.ai/ds-rules.md`  
+> Component reference (variants, sizes, props, examples, MUST rules per primitive): `.ai/ui-components.md`  
+> Workflow guidance (CrudForm, DataTable, Loading, Flash, Notifications, Portal): `packages/ui/AGENTS.md`
 
-### Typography
-- NEVER use arbitrary text sizes (`text-[11px]`, `text-[13px]`, `text-[15px]`)
-- USE Tailwind scale: `text-xs` (12px), `text-sm` (14px), `text-base` (16px), `text-lg` (18px), `text-xl` (20px), `text-2xl` (24px)
-- For 11px uppercase labels: use `text-overline` (custom token)
-- Exception: `text-[9px]` for notification badge count (single use case)
+- NEVER use hardcoded Tailwind status colors (`text-red-*`, `bg-green-*`, `text-amber-*`, etc.) — use `{property}-status-{status}-{role}` tokens
+- NEVER use arbitrary values (`text-[13px]`, `p-[13px]`, `rounded-[24px]`, `z-[9999]`) — use DS scale
+- NEVER add `dark:` overrides on semantic/status tokens — they already handle dark mode
+- NEVER hardcode hex/rgb in `className` — always use CSS token names
+- NEVER use hardcoded Tailwind color shades for borders (`border-gray-300`) — use `border-border`, `border-input`
 
-### Typography Hierarchy
-| Role | HTML | Tailwind | When to use |
-|------|------|----------|-------------|
-| Page title | `<h1>` | `text-2xl font-bold tracking-tight` | Page header (one per page) |
-| Section title | `<h2>` | `text-xl font-semibold` | Major sections |
-| Subsection | `<h3>` | `text-sm font-semibold` | Detail page sections, card titles |
-| Body | `<p>` | `text-sm` | Default body text |
-| Body large | `<p>` | `text-base` | Emphasized body |
-| Caption | `<span>` | `text-xs text-muted-foreground` | Secondary info, timestamps |
-| Label | `<label>` | `text-sm font-medium` | Form labels (via Label component) |
-| Overline | `<span>` | `text-overline font-semibold uppercase tracking-wider` | Section labels, category tags |
-| Code | `<code>` | `text-sm font-mono` | Code snippets |
-
-### Feedback
-- USE `Alert` for inline messages — NOT `Notice` (deprecated)
-- USE `flash()` for transient toast messages
-- USE `useConfirmDialog()` for destructive action confirmation
-- Every list/data page MUST handle empty state via `<EmptyState>` or `emptyState` prop on DataTable
-- Every async page MUST show loading state via `<LoadingMessage>`, `<Spinner>`, or `<DataLoader>`
-- Alert variants: `default`, `destructive` (error), `success`, `warning`, `info`
-
-### Status Display
-- USE `StatusBadge` for entity status display — NEVER hardcode colors on Badge
-- Define a `StatusMap` per entity type in your module:
-```typescript
-import type { StatusMap } from '@open-mercato/ui/primitives/status-badge'
-
-const dealStatusMap: StatusMap<'open' | 'won' | 'lost'> = {
-  open: 'info',
-  won: 'success',
-  lost: 'error',
-}
-```
-
-### Forms
-- USE `FormField` wrapper for standalone forms (portal, auth, custom pages)
-- CrudForm handles field layout internally — do NOT wrap CrudForm fields in FormField
-- Every input MUST have a visible label (never placeholder-only)
-- Error messages use `text-status-error-text` (FormField handles this automatically)
-
-### Icons
-- USE `lucide-react` for ALL icons — NEVER inline `<svg>` elements
-- Icon sizes: `size-3` (12px), `size-4` (16px, default), `size-5` (20px), `size-6` (24px)
-- Stroke width: 2 (lucide default) — do NOT override per-instance
-- Icon-only buttons MUST have `aria-label`
-
-### Sections
-- USE `SectionHeader` for detail page section headers (title + count + action)
-- USE `CollapsibleSection` when section content should be collapsible
-
-### Components — quick reference
-| I need to... | Use this |
-|---|---|
-| Show an error/success/warning message inline | `<Alert variant="destructive\|success\|warning\|info">` |
-| Show a toast notification | `flash('message', 'success\|error\|warning\|info')` |
-| Confirm a destructive action | `useConfirmDialog()` |
-| Display entity status (active, draft, etc.) | `<StatusBadge variant={statusMap[status]} dot>` |
-| Wrap a form field with label + error | `<FormField label="..." error={...}>` |
-| Build a section header with count + action | `<SectionHeader title="..." count={n} action={...}>` |
-| Build a collapsible section | `<CollapsibleSection title="...">content</CollapsibleSection>` |
-
-### Reference Implementation
-When building a new module UI, use the **customers module** as reference:
-- List page: `packages/core/src/modules/customers/backend/customers/people/page.tsx`
-- Detail page: `packages/core/src/modules/customers/backend/customers/people/[id]/page.tsx`
-- Create page: `packages/core/src/modules/customers/backend/customers/people/create/page.tsx`
-- Status mapping: `packages/core/src/modules/customers/components/formConfig.tsx`
-
-### Boy Scout Rule
-When modifying a file that contains hardcoded status colors (`text-red-*`, `bg-green-*`, etc.) or arbitrary text sizes (`text-[11px]`), you MUST migrate at minimum the lines you touched to semantic tokens.
+**Boy Scout Rule**: When touching a file that has hardcoded status colors, arbitrary text sizes, or `dark:` overrides on status colors, migrate at minimum the lines you touched to semantic tokens.
 
 ## Key Commands
 
 ```bash
-yarn dev                  # Start compact dev runtime; press `d` to toggle raw logs
-yarn dev:verbose          # Start dev runtime with full raw passthrough logs
-yarn dev:app              # Start compact app-only runtime
-yarn dev:app:verbose      # Start app-only runtime with raw passthrough logs
-yarn build                # Build everything
-yarn build:packages       # Build packages only
+yarn dev                  # Compact dev runtime; press `d` for raw logs (`:verbose`, `:app`, `:greenfield` variants)
+yarn dev:reset            # Clear .mercato/next/dev plus legacy .next caches when Turbopack serves stale chunks
+yarn build                # Build everything (`build:packages` / `build:app` for one side)
 yarn lint                 # Lint all packages
-yarn test                 # Run tests
+yarn test                 # Run unit tests (`test:integration` for Playwright, headless)
 yarn generate             # Run module generators
-yarn db:generate          # Generate database migrations
-yarn db:migrate           # Apply database migrations
+yarn db:generate          # Generate database migrations (`db:migrate` applies them — ask first)
 yarn initialize           # Full project initialization
-yarn dev:greenfield       # Fresh compact dev boot with build/generate/reinstall stages
-yarn dev:greenfield:verbose  # Greenfield boot with full raw passthrough logs
-yarn test:integration     # Run integration tests (Playwright, headless)
-yarn test:integration:report  # View HTML test report
+yarn agents:check-budget  # Verify AGENTS.md files fit the agent instruction budget
 ```
