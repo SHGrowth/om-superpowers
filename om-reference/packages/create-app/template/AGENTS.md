@@ -1,164 +1,124 @@
-# Standalone Open Mercato Application
+# Standalone Open Mercato App — Agent Rules
 
-This is a **standalone application** that consumes Open Mercato packages from the npm registry. Unlike the monorepo development environment, packages here are pre-compiled and installed as dependencies.
+Route first; never probe unmatched context.
 
-## Package Source Files
+## Always
 
-To explore or understand the Open Mercato framework code:
+- Route all axes; missing context: `yarn mercato agentic:init --update-harness`.
+- Lessons: scan `.ai/lessons.md` tags; open/update one matching record + row.
+- App code: `src/modules/<id>/`; framework context only for named gaps.
+- Derive trusted `tenantId` + `organizationId` and fail closed. Only an installed contract may use system scope (`organizationId: null`).
+- Use commands/`makeCrudRoute`/`CrudForm`/`DataTable`, DI/events/UMES; effects stay post-commit.
+- Put entities in `src/modules/<id>/data/entities.ts`; API routes need per-method `metadata` + `openApi`.
+- Editable records expose `updated_at`/`updatedAt`; custom update/delete clients send the version and surface 409s.
+- Run `yarn db:generate`, review scoped SQL/snapshot, and ask before applying it.
+- Run `yarn generate` after discovery files/`src/modules.ts`/routes/pages/events/widgets/agents/tools/workflows change.
+- Contract-surface changes (route/schema/ID/export/seam/signature/event payload/CLI) MUST read `.ai/guides/upstream/BACKWARD_COMPATIBILITY.md`; tenant/org scope alone is not a contract.
+- Localize strings; use shared UI/tokens and cover loading/empty/error/conflict/keyboard/a11y.
 
-- **Location**: `node_modules/@open-mercato/*/dist/` contains compiled JavaScript
-- **Source exploration**: Search `node_modules/@open-mercato/` for module implementations
-- **Key packages**:
-  - `@open-mercato/core` - Core business modules (auth, customers, catalog, sales, etc.)
-  - `@open-mercato/shared` - Shared utilities, types, DSL helpers, i18n
-  - `@open-mercato/ui` - UI components and primitives
-  - `@open-mercato/cli` - CLI tooling (mercato command)
-  - `@open-mercato/search` - Search module (fulltext, vector, tokens)
+## Ask First
 
-**Note**: When debugging or extending functionality, reference the compiled code in `node_modules/@open-mercato/` to understand the framework's implementation details.
+- Ask before scope/architecture/public contracts/dependencies/ejection/canonical primitives; migrations/resets/DB targets; live credentials/providers; or weakening security/concurrency/retries/idempotency/audit/undo.
 
-## Development Commands
+## Never
 
-```bash
-# Start compact dev runtime (press `d` to toggle raw logs)
-yarn dev
+- Never leak tenants, trust payload scope, or treat missing scope as unrestricted.
+- Never edit `node_modules`/`.mercato/generated/**`/generated facts/shipped migrations.
+- Never use cross-module ORM relations; use IDs/snapshots/events/enrichers/extensions/optional DI.
+- Never use raw admin `fetch`/`<form>`, ad hoc crypto/cache/queues, role-name guards, or direct mutations when helpers exist.
+- Never hard-code user strings/status colors; expose secrets/transcripts; or guess answerable contracts.
 
-# Start dev runtime with full raw passthrough logs
-yarn dev:verbose
+## Validation
 
-# Start the backward-compatible raw runtime with no splash screen
-yarn dev:classic
+Broad: `yarn generate && yarn typecheck && yarn lint && yarn ds:check && yarn test && yarn build`; integration: `yarn test:integration:ephemeral`. Never migrate to validate.
 
-# Run standalone bootstrap + startup in backward-compatible raw mode
-yarn setup:classic
+## Three-Axis Context Assembler
 
-# Build for production
-yarn build
+Routes are additive: ownership says WHO; other axes say WHAT. Select every match.
 
-# Run production server
-yarn start
+`debugging` is additive. A scalar-ID/snapshot fix to persisted records or commands linked to an installed record MUST use `module-data` + `umes` and load `om-data-model-design` + `om-system-extension`.
 
-# Type checking
-yarn typecheck
+`debugging` = reported bug/security/drift, not designed failure UI. Custom fields/entities = `umes` + `module-data` + `om-data-model-design`; editable round trips add `backend-ui`, requested coverage adds `testing`. Never infer work from specs/PRs.
 
-# Linting
-yarn lint
+Unified-override audits = `umes` only; add `architecture`/`framework-context` only for unresolved ownership or installed keys. Durable process/activity/user task = `module-data` + `ai-workflow`. Multi-stage waits/cancel/restart are durable; reminders and renewal/batch schedules are `module-data`.
 
-# Run unit tests
-yarn test
+`backend-ui`: replacing/wrapping, prop-transforming, menu-editing, or adding visible feedback adds `backend-ui`; merely hiding/toggling/rewiring installed UI does not.
+Staff UI preview/report/bulk = `backend-ui`.
+Existing installed form/table fields, filters, row/bulk actions without app persistence = `umes` + `backend-ui` only: read `crud-surfaces` + `quality-states`; do not load contracts, module-scaffold, or page/navigation.
 
-# Run a single unit test
-yarn test path/to/test.spec.ts
+`backend-ui`: UI skill `references/quality-states.md`; public/portal/responsive/a11y adds `frontend-and-design-system.md`.
 
-# Run integration tests (spins up fresh ephemeral app + DB, runs Playwright)
-yarn test:integration:ephemeral
+### Axis 1 — Area/Ownership
 
-# Start ephemeral app only (for manual QA exploration)
-mercato test ephemeral
+| Route | Match | Context |
+|---|---|---|
+| `architecture` | Capability/ownership/field-vs-history choice, boundary, upgrade, override, or registry failure; routine discovery stays in its area | `.ai/guides/architecture.md` + named facts |
+| `module-data` | App-owned domain/data/API | `src/modules/<id>/` + `.ai/guides/contracts.md`; add architecture only when ownership is unresolved |
+| `umes` | Extend/replace installed behavior | `.ai/guides/extensions.md` + named facts |
+| `backend-ui` | Authored/restyled rendered surface or browser UI state/session bootstrap | `.ai/guides/backend-ui.md` + host facts; host-provided integration credentials/health UI alone does not match |
+| `integration` | Provider, spreadsheet/CSV/file I/O, sync/webhook/storage | `.ai/guides/integrations.md`; imports = `integration`; AI consuming files = `ai-workflow`, NEVER `integration` unless transport/storage changes |
+| `ai-workflow` | Agent/tool/MCP/orchestrator/durable workflow | `.ai/guides/ai-workflows.md` + facts; schedules/queues/workers/retries/progress alone are `module-data` |
+| `debugging` | Bug/security/drift/runtime inconsistency | `.ai/guides/testing-debugging.md` + affected areas |
 
-# View HTML integration test report
-mercato test coverage
+API/command/record/status/event/UI changes/guards = `umes`; app persistence = `module-data`; installed guard without app persistence = `umes` only, so do not load contracts; read-only behavior/auth/dependents/customization = `framework-context` (alone: no extensions guide; report `installed-version`). Facts do not. Providers are published, never `packages/*`.
 
-# Generate code from modules
-yarn generate
+### Axis 2 — Work Units
 
-# Manually purge structural navigation/sidebar caches when needed
-yarn mercato configs cache structural --all-tenants
+Match every work-unit row; OPEN its skill before selection.
 
-# Database operations
-yarn db:generate    # Generate migrations
-yarn db:migrate     # Run migrations
-yarn db:greenfield  # Reset and recreate database
+| Route | Work unit | Skill/context |
+|---|---|---|
+| `architecture` | Explain/choose module, UMES, package, eject | architecture; `om-help` for an unresolved or comparative choice across these mechanisms |
+| `module-data` | Business slice or multi-seam domain/API/command fix | MUST load `om-module-scaffold` + its exact `.ai/skills/om-module-scaffold/references/business-one-shot-blueprints.md` key, which resolves units inside the slice, not ownership — an ownership/capability outline adds `architecture` |
+| `spec-pr` | Spec/plan | Axis 3; phases+integration coverage (`integration-coverage`); no domain routes |
+| `architecture` | Upgrade audit or disable built-in | troubleshooter + framework context, or trim skill + exact `src/modules.ts`/`package.json` |
+| `architecture` + `integration` + `framework-context` | Provider superseded by installed capability | integration builder + exact framework context |
+| `module-data` | Entity/link/validator/migration/encryption/lock/transaction | `om-data-model-design` + contracts |
+| `module-data` | CRUD/API/command/OpenAPI/ACL/setup/mutation | `om-module-scaffold` + contracts |
+| `backend-ui` | Form/table/page/renderer/middleware/nav/i18n/UI states | `om-backend-ui-design` + backend UI |
+| `module-data` | Search/analytics/event/notification/message/worker/progress/cache/CLI | scaffold + contracts |
+| `umes` | Fields/extension entities/links/enrichers/injection/interceptors/guards/subscribers/DOM/widgets/toggles/overrides | `om-system-extension` + extensions; choices load `mechanism-selector` + `extension-branches` |
+| `integration` | Provider/credentials/health/webhook/files/client/reconciliation/package | `om-integration-builder` + integrations |
+| `ai-workflow` | Agent/tool/MCP/OpenCode/Code Mode/orchestrator/AI file or content drafting/attachment/override | `om-create-ai-agent` + AI/workflows; MCP/OpenCode loads `surface-selector` + `ai_assistant` facts |
+| `ai-workflow` | Workflow/activity/user task/idempotency/output/progress | `om-build-workflow` + AI/workflows |
+| `testing` | REQUEST says test/coverage/prove, or verify by exercising API/browser/screen sizes/keyboard/screen-reader—not a fix's implicit regression duty or review/audit/config check | MUST read `.ai/guides/testing-debugging.md` + external `om-integration-tests` for integration/E2E/app tests |
+| `debugging` | Reproduce/root-cause/minimal fix/regression oracle | `om-troubleshooter` + testing/debugging |
+| `framework-context` | Exact installed contract still unknown | `.ai/guides/framework-contracts.md`, then bounded `om-framework-context`, last |
+| `debugging` + `testing` | Add/fix recurring harness case/test | `om-evolve-harness` |
 
-# Initialize/reinstall project
-yarn initialize
-yarn reinstall
-```
+`framework-context`: resolve one named fact first. Use bounded source only if the guide leaves current behavior, authorization, dependents, or safest customization seam unresolved; never for “installed contracts” alone.
 
-## Dev Splash Features
+### Axis 3 — SDLC and Delivery
 
-- `yarn dev` serves the compact splash screen on `http://localhost:4000` by default and auto-opens it on supported local runs.
-- When enabled, the splash can launch detected coding tools from the `Start coding with AI` menu.
-- In standalone apps, the splash can also create or publish a GitHub repository through `gh` once the app is ready.
+Spec gate before code: new capability/architecture/schema/API contract/cross-module/multi-phase -> spec first (`spec-first`); covering `.ai/specs` match -> reuse and update it (`reuse-spec`); bug fix/minor fix/docs/dependency/isolated refactor -> proceed (`direct`); only the request's explicit words waive a feature spec; workflow-changing ambiguity -> ask once (`ask`). Then `om-module-scaffold` starts at `src/modules/example/README.md`.
 
-## Recommended Local Tooling
+Read `.agents/skills/<id>/SKILL.md` AND any `.ai/skills/<id>/SKILL.md` override. Missing skill: `yarn install-skills`. Commit+ready PR MUST add `spec-pr`, read `.ai/skills/om-auto-create-pr/SKILL.md`, and keep task routes (`delivery-route-preserves-task-routes`).
 
-- GitHub CLI (`gh`) is recommended for the splash GitHub publish flow: <https://cli.github.com/>
-- Codex CLI is recommended for the OpenAI terminal workflow surfaced by the splash: <https://developers.openai.com/codex/cli>
-- Claude Code is recommended for the Anthropic terminal workflow surfaced by the splash: <https://code.claude.com/docs/en/setup>
-- Visual Studio Code is the recommended general-purpose editor: <https://code.visualstudio.com/Download>
-- Cursor is a recommended AI-first editor: <https://cursor.com/download>
+| Route ID | Delivery need | Skill |
+|---|---|---|
+| `spec-pr` | Write/revise spec | MUST invoke `om-spec-writing` (OMH-005) + `.ai/guides/spec-delivery.md` |
+| `spec-pr` | Local phases / whole-spec / PR / issue / review | `om-implement-spec` (OMH-006) / `om-auto-implement-spec` / `om-auto-create-pr` / `om-auto-fix-issue` / `om-auto-review-pr` |
+| — | No PR/spec workflow | Do not load delivery skills |
 
-## Dev Splash Environment Variables
+### Token-Efficient Assembly Policy
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `OM_DEV_SPLASH_PORT` | `4000` | Override the splash port. Use `random` or `0` for an ephemeral free port. |
-| `OM_DEV_AUTO_OPEN` | `1` | Set to `0` to disable browser auto-open for the splash. |
-| `OM_DEV_CREATE_GIT_REPO_FLOW` | `true` | Set to `false` to hide the standalone GitHub publish panel from the splash. |
-| `OM_ENABLE_CODING_FLOW_FROM_SPLASH` | `true` | Set to `false` to hide the coding tools menu from the splash. |
-| `OM_DEV_SPLASH_VSCODE_PATH` | auto-detect | Optional path override for the VS Code CLI. |
-| `OM_DEV_SPLASH_CURSOR_PATH` | auto-detect | Optional path override for the Cursor CLI. |
-| `OM_DEV_SPLASH_CLAUDE_CODE_PATH` | auto-detect | Optional path override for the Claude Code CLI. |
-| `OM_DEV_SPLASH_CODEX_PATH` | auto-detect | Optional path override for the Codex CLI. |
+- Load matched guides once, then only needed references/facts.
+- Hard budgets: guide > skill > references; open a reference only for its named subject.
+- `spec-pr` reads template via spec-delivery.
+- Inspect app call sites before bounded `framework-context`.
+- Additive page/form/table/conflict UI skips it.
+- Never bulk-read guide, skill, fact, or source trees.
 
-## Infrastructure
+## Module-Specific Facts
 
-Start required services via Docker Compose:
-```bash
-docker compose up -d
-```
+Mechanisms: events/subscribers→events; long operation/progress→progress; provider settings/health/OAuth→integrations; sync/import→data_sync. Hosts: session/auth→auth; customer/contact/deal/pipeline→customers; product/price/stock/inventory→catalog; currency/money→currencies; cart/checkout/shopper→checkout; portal→portal+customer_accounts; quote/order/invoice/sales assistant→sales; notification→notifications; webhook/callback→webhooks; schedule/reminder→scheduler; workflow/activity/user task→workflows; assistant→ai_assistant; maintained query index/reindex→query_index; search convergence→search. staff/employee≠optional staff; audit/record-who≠audit_logs unless extended. App primitives skip api_docs/search/query_index unless changed. Big fact-sheets: read in sections.
 
-Services: PostgreSQL (pgvector), Redis, Meilisearch
+<!-- om:module-guides:start -->
+<!-- om:module-guides:end -->
 
-## Architecture
+## Working Sequence
 
-### Open Mercato Framework
+1. Route, then implement the smallest complete slice through real call sites.
+2. Discovery change: run `yarn generate`; then the smallest gate/integration paths.
 
-This is a Next.js 16 application built on the **Open Mercato** modular ERP framework. The framework provides:
-
-- **Module system**: Business modules (auth, customers, catalog, sales, etc.) from `@open-mercato/*` packages
-- **Entity system**: MikroORM entities with code generation
-- **DI container**: Awilix-based dependency injection
-- **RBAC**: Role-based access control with feature flags
-
-### Key Files
-
-- `src/modules.ts` - Declares enabled modules and their sources (`@open-mercato/core`, `@open-mercato/*`, or `@app`)
-- `src/di.ts` - App-level DI overrides (runs after core/module registrations)
-- `src/bootstrap.ts` - Application initialization (imports generated files, registers i18n)
-- `.mercato/generated/` - Auto-generated files from `yarn generate` (do not edit manually)
-
-### Routing Structure
-
-- `/backend/*` - Admin panel routes (AppShell with sidebar navigation)
-- `/(frontend)/*` - Public-facing routes
-- `/api/*` - API routes with automatic module routing via `findApi()`
-
-### Module Development
-
-Custom modules go in `src/modules/`. Each module can define:
-- Entities (MikroORM)
-- API routes
-- Backend/frontend pages
-- DI registrations
-- Navigation entries
-
-Add new modules to `src/modules.ts` with `from: '@app'`.
-Install official package-backed modules with `yarn mercato module add @open-mercato/<package>`.
-
-The standalone template enables the `configs` module from `@open-mercato/core`, so `yarn mercato configs cache ...` is available here after installation. After structural changes such as enabling or disabling modules, adding or removing backend/frontend pages, or changing sidebar/navigation injections, run `yarn generate`. The generator now performs a best-effort structural cache purge automatically after successful generation; if the cache command is unavailable, generation still succeeds.
-
-### Path Aliases
-
-- `@/*` → `./src/*`
-- `@/.mercato/*` → `./.mercato/*`
-
-### i18n
-
-Translation files in `src/i18n/{locale}.json`. Supported locales: en, pl, es, de.
-
-## Requirements
-
-- Node.js >= 24
-- Yarn (via corepack)
+Precedence: root→BC→installed `AGENTS.md`→facts; stop on skew/conflict; never guess.
