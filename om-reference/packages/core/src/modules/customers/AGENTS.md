@@ -2,7 +2,7 @@
 
 **This is the reference CRUD module.** When building new modules, copy patterns from here first.
 
-## MUST Rules
+## Always
 
 1. **MUST use this module as the template** for new CRUD modules — copy file structure and patterns
 2. **MUST include all standard module files** — use the list below as a checklist
@@ -10,6 +10,25 @@
 4. **MUST wire custom field helpers** for create/update/response normalization
 5. **MUST capture custom field snapshots** in command `before`/`after` payloads for undo support
 6. **MUST use `useGuardedMutation` for non-`CrudForm` backend writes** (`POST`/`PUT`/`PATCH`/`DELETE`) and pass `retryLastMutation` in injection context
+
+## Ask First
+
+- Ask before changing this module's reference patterns, standard module-file checklist, or AI mutation policies.
+- Ask before changing customer data model relationships that downstream modules may copy.
+
+## Never
+
+- Never bypass custom field normalization in CRUD create/update/read responses.
+- Never omit undo snapshots for custom field mutations.
+- Never write backend `POST`/`PUT`/`PATCH`/`DELETE` actions outside `CrudForm` without `useGuardedMutation`.
+
+## Validation Commands
+
+```bash
+yarn db:generate
+yarn generate
+yarn workspace @open-mercato/core build
+```
 
 ## Key Reference Files — Copy From Here
 
@@ -39,6 +58,16 @@
 - **Comments** — notes on records. MUST reference the parent entity
 - **Addresses** — multi-address support. MUST link to person or company via FK
 
+## New Entity Checklist For Agents
+
+When creating a new entity or CRUD slice, copy the customers module structure first, then align with `packages/core/AGENTS.md` and `packages/cli/AGENTS.md`.
+
+1. Define MikroORM v7 entities in `data/entities.ts` with decorators imported from `@mikro-orm/decorators/legacy`.
+2. Use UUID primary keys, snake_case table/column names, `organization_id`, `tenant_id`, and standard timestamp/soft-delete columns. For a **user-editable** entity, include `updated_at` (onCreate+onUpdate) so optimistic locking works, and return `updatedAt` from its CRUD list/detail responses.
+3. Add validators, commands, CRUD route, backend pages, ACL, setup grants, events, search, and translations as applicable. Edit/delete UI: prefer `CrudForm` (auto-derives the optimistic-lock header from `initialValues.updatedAt`); for custom list-row/dialog mutations, wrap with `withScopedApiRequestHeaders(buildOptimisticLockHeader(record.updatedAt), …)` and `surfaceRecordConflict(err, t)`.
+4. Generate or author the migration for only this entity change, then update the module's `migrations/.snapshot-open-mercato.json`.
+5. Run `yarn db:generate` again as a no-op check; expected output for the touched module is `no changes`.
+
 ## CRUD API Pattern
 
 The CRUD factory API route (`api/people/route.ts`) demonstrates:
@@ -58,6 +87,12 @@ Commands (`commands/people.ts`) demonstrate:
 3. Restore via `buildCustomFieldResetMap(before.custom, after.custom)` in undo
 4. Side effects with `emitCrudSideEffects` and `emitCrudUndoSideEffects`
 5. Include `indexer: { entityType, cacheAliases }` in both directions
+6. **Prefer `runCrudCommandWrite` for new commands** that combine entity writes + custom fields + side effects in one logical step. Reference: the migrated `updateDealCommand.execute` in `commands/deals.ts`. See `packages/core/AGENTS.md` → Entity Update Safety for the contract and `packages/shared/AGENTS.md` → `commands/runCrudCommandWrite` for the import.
+
+## Transaction Safety
+
+- Multi-phase scalar + relation mutations (e.g. update commands that also sync tags) use `withAtomicFlush(em, phases, { transaction: true })` from `@open-mercato/shared/lib/commands/flush` — never interleave `em.find`/`em.findOne` between a scalar mutation and `em.flush()`.
+- Side effects (`emitCrudSideEffects`) and cache invalidation fire **after** commit, outside the `withAtomicFlush` block. See `packages/core/AGENTS.md` → "Entity Update Safety — `withAtomicFlush`" and `.ai/specs/2026-06-05-cache-safety-always-consistent.md`.
 
 ## Custom Field Integration
 
@@ -83,3 +118,21 @@ Use `collectCustomFieldValues()` from `@open-mercato/ui/backend/utils/customFiel
 ## Module Files Checklist — All MUST Be Present
 
 `acl.ts`, `ce.ts`, `di.ts`, `events.ts`, `index.ts`, `notifications.ts`, `search.ts`, `setup.ts`, `analytics.ts`, `vector.ts`
+
+## AI Agents in This Module
+
+This module is the reference implementation for the AI framework. Copy `ai-agents.ts` + `ai-tools.ts` when adding AI agents to other modules. See `/framework/ai-assistant/agents` for the full guide.
+
+| Agent ID | Mode | Policy | Purpose |
+|----------|------|--------|---------|
+| `customers.account_assistant` | chat | read-only (mutation-capable via per-tenant override that unlocks `customers.update_deal_stage`; see `packages/core/src/modules/customers/ai-agents.ts` for the whitelist and prompt) | Operator-facing assistant that explores people, companies, deals, activities, tasks, addresses, tags, and settings through the customers tool pack. |
+| `customers.update_deal_stage` | tool (mutation) | `destructive-confirm-required` — goes through `prepareMutation` + the approval card | Moves a deal between stages / flips status between open, won, lost. Declared via `defineAiTool` in `ai-tools.ts` and exposed only when the tenant mutation-policy override promotes the agent above read-only. |
+| `customers.deal_analyzer` | chat, `executionEngine: 'stream-text'` | `confirm-required` | Multi-step agentic demo that exercises loop primitives from PRs #1856..#1869. Calls `customers.analyze_deals`, ranks deals by health score, then calls `customers.update_deal_stage` for the highest-value stalled deal — loop stops immediately after (loop.stopWhen). `loop.prepareStep` scopes the active tool set by step without overriding the model. It intentionally leaves `defaultProvider` and `defaultModel` unset so runtime resolution uses `OM_AI_PROVIDER` / `OM_AI_MODEL` or tenant/runtime overrides. |
+| `customers.deal_analyzer_tool_loop` | chat, `executionEngine: 'tool-loop-agent'` | `confirm-required` | Sibling agent identical to `customers.deal_analyzer` but dispatched via `ToolLoopAgent`. Proves the mutation-approval gate holds for both execution engines (TC-AI-AGENT-LOOP-006). |
+
+`<AiChat agent="customers.account_assistant" />` is injected in two places (both live in `widgets/injection/`):
+- People list: `data-table:customers.people.list:search-trailing` via the `ai-assistant-trigger` widget.
+- Deal detail: `detail:customers.deal:header` via the `ai-deal-detail-trigger` widget.
+
+`<AiChat agent="customers.deal_analyzer" />` is injected on the Deals list page:
+- Deals list: `data-table:customers.deals.list:search-trailing` via the `ai-deal-analyzer-trigger` widget. Selected deal IDs are passed as `pageContext.recordId` (comma-separated UUIDs) so the agent can scope its `customers.analyze_deals` call to the operator's current selection.

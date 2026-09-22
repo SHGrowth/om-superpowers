@@ -2,7 +2,7 @@
 
 Customer-facing identity and portal authentication with a two-tier RBAC model. This module manages customer user accounts, sessions, roles, invitations, and the authentication flow for the customer portal. It is separate from the internal `auth` module, which handles staff authentication.
 
-## MUST Rules
+## Always
 
 1. **MUST hash passwords with `bcryptjs` (cost >= 10)** — never store plaintext passwords
 2. **MUST return minimal error messages on auth endpoints** — never reveal whether an email exists (use generic "Invalid email or password")
@@ -10,11 +10,34 @@ Customer-facing identity and portal authentication with a two-tier RBAC model. T
 4. **MUST validate all inputs with zod** — schemas live in `data/validators.ts`
 5. **MUST export `openApi`** from every API route file
 6. **MUST scope all queries by `tenantId`** and filter `deletedAt: null` for soft-deleted records
-7. **MUST NOT expose cross-tenant data** — session validation checks tenant match
-8. **MUST use `hashForLookup` for email-based lookups** — emails are stored with a deterministic hash for indexed queries
-9. **MUST use `hashToken` for storing session/verification/reset tokens** — raw tokens are never persisted
-10. **MUST emit events via `emitCustomerAccountsEvent`** for all state changes (login, signup, lock, password reset)
-11. **MUST NOT import staff auth services** — customer auth is a fully separate identity system
+7. **MUST use `hashForLookup` for email-based lookups** — emails are stored with a deterministic hash for indexed queries
+8. **MUST use `hashToken` for storing session/verification/reset tokens** — raw tokens are never persisted
+9. **MUST emit events via `emitCustomerAccountsEvent`** for all state changes (login, signup, lock, password reset)
+
+## Ask First
+
+- Ask before changing cookie names, token TTLs, JWT claim shape, rate limits, lockout thresholds, or portal RBAC semantics.
+- Ask before moving customer portal navigation into a different staff IA group.
+- Ask before changing CRM auto-linking behavior.
+
+## Never
+
+- Never store plaintext passwords or raw tokens.
+- Never reveal whether an email exists.
+- Never expose cross-tenant data — session validation checks tenant match.
+- Never import staff auth services; customer auth is a fully separate identity system.
+- Never use exact `includes(...)` checks for portal wildcard ACL matching.
+
+## Validation Commands
+
+```bash
+yarn db:generate
+yarn generate
+yarn workspace @open-mercato/core build
+yarn workspace @open-mercato/core test --testPathPatterns='customer_accounts'
+```
+
+Runbook command (idempotent, safe to re-run): `yarn mercato customer_accounts sync-customer-role-acls [--tenant <tenantId>]` — see § Cross-Module Feature Merging.
 
 ## Data Model
 
@@ -116,7 +139,7 @@ Effective permissions = User ACL (if exists) OR aggregated Role ACLs.
 
 ### Portal Admin Flag
 
-`isPortalAdmin: true` on a role/user ACL bypasses all feature checks (equivalent to staff `isSuperAdmin`).
+`isPortalAdmin: true` on a role/user ACL bypasses stored-grant matching (equivalent to staff `isSuperAdmin`). Nulled ACL features and disabled modules remain denied.
 
 ### Default Roles (seeded on tenant creation)
 
@@ -130,11 +153,19 @@ Effective permissions = User ACL (if exists) OR aggregated Role ACLs.
 
 Customer portal features use the `portal.<area>.<action>` naming convention (e.g., `portal.orders.view`, `portal.catalog.view`).
 
-Treat `portal.*` and `*` as first-class ACL grants. When portal code reads raw feature arrays directly (for example menu filtering, injected portal navigation, or local runtime guards), use shared wildcard-aware matching instead of exact `includes(...)` checks.
+Treat `portal.*` and `*` as first-class stored ACL grants. Server authorization calls `CustomerRbacService.userHasAllFeatures`; already-loaded snapshots call shared `authorizeFeatures`. Portal UI and navigation consume `getEffectiveFeatures`, which returns concrete active IDs without wildcards.
 
 ### Cross-Module Feature Merging
 
 Other modules can declare `defaultCustomerRoleFeatures` in their `setup.ts`. During `seedDefaults`, the customer_accounts module collects these from all enabled modules and merges them into the corresponding `CustomerRoleAcl` records.
+
+`seedDefaults` reaches **new** tenants only. Existing tenants replay the identical merge with:
+
+```bash
+yarn mercato customer_accounts sync-customer-role-acls [--tenant <tenantId>]
+```
+
+Both paths call the single helper `lib/customerRoleAclSync.ts` → `syncDefaultCustomerRoleAcls`. MUST route any new customer-role grant flow through that helper rather than writing `CustomerRoleAcl` rows directly, so the contract stays one implementation: additive only (never revokes a hand-added feature), wildcard-aware via `hasFeature` (a role holding `portal.*` gains no redundant concrete grant), never creates a `CustomerRole` or `CustomerRoleAcl`, tenant-scoped on every query, and idempotent. Run it after adding portal features to any module's `acl.ts` + `defaultCustomerRoleFeatures`, the same way `auth sync-role-acls` follows a `defaultRoleFeatures` change. Note `CustomerRbacService` caches ACLs for five minutes, so a fresh grant is not instantly visible to a signed-in portal user.
 
 ### Server-Side Auth Helpers
 
@@ -152,7 +183,7 @@ const customerRbacService = container.resolve('customerRbacService')
 const hasAccess = await customerRbacService.userHasAllFeatures(userId, ['portal.orders.view'], { tenantId, organizationId })
 ```
 
-When a portal UI/client helper needs batch checks, prefer `/api/customer_accounts/portal/feature-check`. If it evaluates raw granted features directly, it must preserve wildcard semantics.
+When a portal UI/client helper needs batch checks, prefer `/api/customer_accounts/portal/feature-check`. Client helpers receive concrete effective features and may use the pure shared matcher without implementing portal-admin or removal bypasses.
 
 ## Services and DI
 
@@ -242,6 +273,7 @@ Declared in `events.ts` via `createModuleEvents`. Emit with `emitCustomerAccount
 | `customer_accounts.role.created` | crud | No |
 | `customer_accounts.role.updated` | crud | No |
 | `customer_accounts.role.deleted` | crud | No |
+| `customer_accounts.user.invited` | lifecycle | Yes |
 | `customer_accounts.invitation.accepted` | lifecycle | Yes |
 
 ## Subscribers
@@ -285,10 +317,16 @@ Both link to `/backend/customer_accounts/{sourceEntityId}` for staff review.
 
 | Spot ID | Widget | Purpose |
 |---------|--------|---------|
-| `crud-form:customers:customer_person_profile:fields` | `account-status` | Shows portal account status on CRM person detail page |
-| `crud-form:customers:customer_company_profile:fields` | `company-users` | Shows portal users linked to a CRM company |
+| `customers.person` | `account-status` | Alias for hosts requesting the bare `customers.person` entity spot |
+| `crud-form:customers.person` | `account-status` | Shows portal account status on the person v2 detail page (`people-v2/[id]`) |
+| `customers.company` | `company-users` | Alias for hosts requesting the bare `customers.company` entity spot |
+| `crud-form:customers.company` | `company-users` | Shows portal users on the company v2 detail page (`companies-v2/[id]`) |
 
 Both inject as column 2 groups with priority 200, gated by `customer_accounts.view` feature.
+
+CrudForm derives its spot id as `crud-form:${entityId}` with every `:` normalized to `.`, so a
+registered `crud-form:` key whose entity segment still contains `:` can never be requested by any
+host. Register against the normalized (dot) form only — `injection-table.test.ts` enforces this.
 
 ## Backend Pages
 
@@ -344,7 +382,9 @@ Configurable via environment variables (`CUSTOMER_LOGIN_POINTS`, `CUSTOMER_LOGIN
 ### Email Privacy
 
 - Emails stored in plaintext but lookups use `hashForLookup` (deterministic hash)
-- Unique constraint on `(tenantId, emailHash)` prevents duplicates
+- Partial unique index on `(tenantId, emailHash) WHERE deleted_at IS NULL` prevents duplicate **active** accounts — a soft-deleted row no longer blocks re-inviting its email (#5532)
+- Every `CustomerUser` email lookup MUST therefore filter `deletedAt: null`; that predicate is load-bearing, not defensive, because two rows can legitimately share `(tenantId, emailHash)` once one is soft-deleted
+- Match lookups against `lookupHashCandidates(email)` rather than a single `hashForLookup(email)`, so rows still carrying the legacy digest are found
 - Error messages never confirm whether an email is registered
 
 ## Lib Utilities
